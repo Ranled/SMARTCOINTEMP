@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>SmartCoin | Container Monitor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -254,24 +256,21 @@
   <div class="modal-backdrop" id="withdrawModal">
     <div class="modal-box withdraw-modal-box">
       <div class="modal-header">
-        <div>
+        <div class="modal-header-text">
           <h3>SELECT COINS TO WITHDRAW</h3>
-          <span class="receipt-sub">RULE: Minimum ₱100 required per coin denomination</span>
+          <span class="modal-rule-pill">RULE: Minimum ₱100 required per coin</span>
         </div>
         <button class="close-modal" id="closeWithdrawBtn">&times;</button>
       </div>
       <div class="modal-body">
         <!-- Rule Notice Box -->
         <div class="withdraw-rule-banner">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
           </svg>
-          <div>
-            <strong>₱100 Minimum Threshold Condition:</strong>
-            <p>Select which coin denomination to withdraw. Each selected denomination must have at least ₱100 in the container.</p>
-          </div>
+          <p><strong>₱100 Condition:</strong> Only coin denominations that reached at least ₱100 in the container can be selected.</p>
         </div>
 
         <!-- Coin Selection List -->
@@ -349,23 +348,23 @@
           </div>
         </div>
 
-        <!-- Calculated Summary of Selection -->
+        <!-- Calculated Summary of Selection (Compact 3-Card Grid) -->
         <div class="withdraw-summary-box">
-          <div class="withdraw-line">
-            <span>Selected Amount to Withdraw:</span>
-            <strong id="modalWithdrawAmount" style="color: var(--accent-green); font-size: 1.15rem;">₱0</strong>
+          <div class="withdraw-stat-card">
+            <span class="stat-label">DISBURSING</span>
+            <strong class="stat-val highlight-green" id="modalWithdrawAmount">₱0</strong>
           </div>
-          <div class="withdraw-line">
-            <span>Selected Coins to Disburse:</span>
-            <strong id="modalWithdrawCoins">0 pcs</strong>
+          <div class="withdraw-stat-card">
+            <span class="stat-label">COINS</span>
+            <strong class="stat-val" id="modalWithdrawCoins">0 pcs</strong>
           </div>
-          <div class="withdraw-line">
-            <span>Remaining Container Balance:</span>
-            <strong id="modalRemainingBalance">₱0</strong>
+          <div class="withdraw-stat-card">
+            <span class="stat-label">REMAINING</span>
+            <strong class="stat-val" id="modalRemainingBalance">₱0</strong>
           </div>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" style="margin-top: 4px;">
           <label for="withdrawNotes">OFFICER NOTE / REMARKS (OPTIONAL)</label>
           <input type="text" id="withdrawNotes" placeholder="e.g. Withdrew ₱100 batch of ₱20 coins">
         </div>

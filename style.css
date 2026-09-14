@@ -349,23 +349,10 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* Denomination Grid */
 .denominations-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-}
-
-@media (max-width: 900px) {
-  .denominations-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 500px) {
-  .denominations-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .coin-card {
@@ -540,10 +527,15 @@ body {
 /* Logs Table */
 .table-container {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: #ffffff;
 }
 
 .logs-table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
   font-size: 0.8rem;
   text-align: left;
@@ -726,52 +718,67 @@ body {
 
 /* Selective Withdrawal Modal Styles */
 .withdraw-modal-box {
-  max-width: 500px;
+  max-width: 520px;
+}
+
+.modal-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.modal-rule-pill {
+  font-size: 0.68rem;
+  color: var(--accent-green);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  background: var(--accent-green-light);
+  border: 1px solid var(--accent-green-border);
+  padding: 2px 7px;
+  border-radius: 4px;
+  width: fit-content;
 }
 
 .withdraw-rule-banner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-medium);
   color: var(--text-sub);
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: 6px;
-  font-size: 0.78rem;
-  line-height: 1.4;
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 .withdraw-rule-banner svg {
   flex-shrink: 0;
-  margin-top: 2px;
   color: var(--accent-green);
 }
 
-.withdraw-rule-banner strong {
-  display: block;
-  font-size: 0.8rem;
-  color: var(--text-pure-dark);
-  margin-bottom: 2px;
+.withdraw-rule-banner p {
+  margin: 0;
 }
 
 .coin-select-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .coin-select-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background: #ffffff;
   border: 1px solid var(--border-medium);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+  gap: 10px;
 }
 
 .coin-select-item:hover:not(.disabled) {
@@ -782,7 +789,7 @@ body {
 .coin-select-item.disabled {
   background: #f8fafc;
   border-color: #e2e8f0;
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
@@ -797,61 +804,70 @@ body {
   height: 18px;
   accent-color: var(--accent-green);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .item-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
+  min-width: 0;
 }
 
 .coin-badge-sm {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   background: var(--text-pure-dark);
   color: #ffffff;
-  padding: 3px 8px;
+  padding: 3px 6px;
   border-radius: 4px;
-  min-width: 38px;
+  min-width: 36px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .item-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  min-width: 0;
 }
 
 .item-title {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-pure-dark);
+  white-space: nowrap;
 }
 
 .item-sub {
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .item-right {
-  margin-left: 10px;
+  flex-shrink: 0;
 }
 
 .mode-select {
   background: #ffffff;
   border: 1px solid var(--border-medium);
   border-radius: 4px;
-  padding: 6px 10px;
-  font-size: 0.78rem;
+  padding: 5px 8px;
+  font-size: 0.74rem;
   color: var(--text-main);
   font-family: var(--font-display);
   font-weight: 600;
   outline: none;
   cursor: pointer;
   transition: border-color 0.15s ease;
+  max-width: 170px;
 }
 
 .mode-select:focus {
@@ -863,6 +879,7 @@ body {
   cursor: not-allowed;
   background: #f1f5f9;
 }
+
 .btn-quick-withdraw {
   width: 100%;
   justify-content: center;
@@ -885,26 +902,46 @@ body {
   color: #ffffff;
 }
 
+/* Compact 3-Card Summary Grid */
 .withdraw-summary-box {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.withdraw-stat-card {
+  background: #ffffff;
+  border: 1px solid var(--border-medium);
   border-radius: 6px;
-  padding: 14px 16px;
+  padding: 8px 6px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
 }
 
-.withdraw-line {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: var(--text-sub);
+.stat-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.withdraw-line strong {
-  color: var(--text-pure-dark);
+.stat-val {
   font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-pure-dark);
+}
+
+.stat-val.highlight-green {
+  color: #15803d;
 }
 
 /* Toast Notifications */
@@ -1288,4 +1325,315 @@ body {
   cursor: not-allowed !important;
   opacity: 0.75;
 }
+
+/* ========================================================
+   ANDROID & MOBILE DEVICE RESPONSIVE SYSTEM
+   ======================================================== */
+
+/* Touch & Tap Optimizations */
+button, input, select, .coin-select-item {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Medium Tablets & Large Android Phones (<= 768px) */
+@media screen and (max-width: 768px) {
+  body {
+    padding: 12px 10px;
+  }
+
+  .app-container {
+    gap: 14px;
+  }
+
+  /* Top Navigation */
+  .top-nav {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .nav-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sync-indicator {
+    padding: 5px 10px;
+    font-size: 0.7rem;
+  }
+
+  /* Vault Card */
+  .vault-card {
+    padding: 18px 14px;
+  }
+
+  .vault-top-banner {
+    margin-bottom: 14px;
+    gap: 8px;
+  }
+
+  .vault-value {
+    font-size: clamp(2.5rem, 11vw, 3.8rem);
+  }
+
+  .currency-symbol {
+    font-size: 1.8rem;
+  }
+
+  .vault-footer {
+    padding-top: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .metrics-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .metric-card {
+    padding: 8px 12px;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .btn-withdraw {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+  }
+
+  /* Denominations Grid (2-column on mobile) */
+  .denominations-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+
+  .coin-card {
+    padding: 14px 12px;
+    gap: 10px;
+  }
+
+  .coin-count {
+    font-size: 1.8rem;
+  }
+
+  .coin-badge {
+    font-size: 0.85rem;
+    padding: 2px 6px;
+  }
+
+  .coin-name-tag {
+    font-size: 0.65rem;
+  }
+
+  .btn-quick-withdraw {
+    padding: 8px 6px;
+    font-size: 0.68rem;
+  }
+
+  /* Transaction Logs Table Mobile Scroll */
+  .logs-card {
+    padding: 16px 12px;
+  }
+
+  .logs-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .filter-group {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filter-btn {
+    flex: 1;
+    text-align: center;
+    padding: 6px 10px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .logs-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    margin-top: 6px;
+  }
+
+  .logs-table {
+    min-width: 600px;
+  }
+
+  .logs-table th, .logs-table td {
+    padding: 10px 10px;
+    font-size: 0.72rem;
+  }
+
+  /* Modals on Mobile */
+  .modal-backdrop {
+    padding: 8px;
+    align-items: center;
+  }
+
+  .modal-box {
+    max-height: 90vh;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    padding: 14px 16px;
+    position: sticky;
+    top: 0;
+    background: #ffffff;
+    z-index: 10;
+  }
+
+  .modal-body {
+    padding: 14px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 10px;
+  }
+
+  .modal-footer {
+    padding: 12px 14px;
+    flex-direction: column-reverse;
+    gap: 8px;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: var(--bg-secondary);
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+  }
+
+  .coin-select-list {
+    gap: 7px;
+  }
+
+  .coin-select-item {
+    padding: 9px 10px;
+    gap: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .item-left {
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .coin-badge-sm {
+    font-size: 0.75rem;
+    padding: 2px 5px;
+    min-width: 32px;
+  }
+
+  .item-title {
+    font-size: 0.78rem;
+  }
+
+  .item-sub {
+    font-size: 0.65rem;
+  }
+
+  .item-right {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .mode-select {
+    padding: 5px 6px;
+    font-size: 0.7rem;
+    max-width: 135px;
+  }
+
+  .withdraw-summary-box {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .withdraw-stat-card {
+    padding: 6px 4px;
+  }
+
+  .stat-label {
+    font-size: 0.58rem;
+  }
+
+  .stat-val {
+    font-size: 0.95rem;
+  }
+
+  .confirm-footer {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Small Android Phones (<= 420px) */
+@media screen and (max-width: 420px) {
+  .brand-title {
+    font-size: 0.92rem;
+  }
+
+  .brand-sub {
+    font-size: 0.65rem;
+  }
+
+  .vault-value {
+    font-size: 2.5rem;
+  }
+
+  .denominations-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+
+  .coin-card {
+    padding: 12px 10px;
+  }
+
+  .coin-count {
+    font-size: 1.5rem;
+  }
+
+  .coin-unit {
+    font-size: 0.68rem;
+  }
+
+  .receipt-meta-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
 
