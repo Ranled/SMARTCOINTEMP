@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartCoin | Container Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-badge"></div>
+        <div>
+          <h1 class="brand-title">SMARTCOIN // GROUP 4</h1>
+          <p class="brand-sub">HARDWARE TELEMETRY & VAULT MONITOR</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <div class="sync-indicator" id="syncStatus">
+          <span class="dot"></span>
+          <span class="sync-text">DISCONNECTED</span>
+        </div>
+        <button id="configBtn" class="btn btn-outline btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          API CONFIG
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-grid">
+      <!-- Total Vault Display -->
+      <section class="vault-card">
+        <div class="vault-top-banner">
+          <div class="vault-label-group">
+            <span class="label-mono">LIVE VAULT BALANCE</span>
+            <span class="label-tag-white">ACTIVE CONTAINER</span>
+          </div>
+          <span class="chip-status" id="lastUpdated">SYNCING WITH ESP32...</span>
+        </div>
+        
+        <div class="vault-main">
+          <div class="currency-symbol">₱</div>
+          <div class="vault-value" id="totalAmount">0</div>
+        </div>
+
+        <div class="vault-footer">
+          <div class="metrics-row">
+            <div class="metric-card">
+              <span class="metric-label">TOTAL COINS INSIDE</span>
+              <span class="metric-val highlight-white" id="totalCoinsCount">0 PCS</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">CONTAINER STATE</span>
+              <span class="metric-val highlight-green" id="containerState">READY & ONLINE</span>
+            </div>
+          </div>
+          
+          <div class="actions">
+            <button id="withdrawBtn" class="btn btn-primary btn-withdraw">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              WITHDRAW ALL COINS
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section Title for Coins -->
+      <div class="section-divider-title">
+        <span>DENOMINATION BREAKDOWN (₱100 MINIMUM TO WITHDRAW EACH)</span>
+      </div>
+
+      <!-- Denomination Breakdown Grid -->
+      <section class="denominations-grid">
+        <!-- ₱1 Coin Card -->
+        <div class="coin-card" id="card-p1">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱1</span>
+              <span class="coin-name-tag">ONE PESO</span>
+            </div>
+            <div class="coin-status-badge" id="statusBadge1">LOCKED (0/₱100)</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count1">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal1">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar1" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Goal to Withdraw:</span>
+            <span class="threshold-val" id="progress1">₱0 / ₱100</span>
+          </div>
+          <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw1" disabled onclick="quickWithdrawDenom(1)">
+            WITHDRAW ₱100 (100 PCS)
+          </button>
+        </div>
+
+        <!-- ₱5 Coin Card -->
+        <div class="coin-card" id="card-p5">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱5</span>
+              <span class="coin-name-tag">FIVE PESOS</span>
+            </div>
+            <div class="coin-status-badge" id="statusBadge5">LOCKED (0/₱100)</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count5">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal5">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar5" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Goal to Withdraw:</span>
+            <span class="threshold-val" id="progress5">₱0 / ₱100</span>
+          </div>
+          <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw5" disabled onclick="quickWithdrawDenom(5)">
+            WITHDRAW ₱100 (20 PCS)
+          </button>
+        </div>
+
+        <!-- ₱10 Coin Card -->
+        <div class="coin-card" id="card-p10">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱10</span>
+              <span class="coin-name-tag">TEN PESOS</span>
+            </div>
+            <div class="coin-status-badge" id="statusBadge10">LOCKED (0/₱100)</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count10">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal10">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar10" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Goal to Withdraw:</span>
+            <span class="threshold-val" id="progress10">₱0 / ₱100</span>
+          </div>
+          <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw10" disabled onclick="quickWithdrawDenom(10)">
+            WITHDRAW ₱100 (10 PCS)
+          </button>
+        </div>
+
+        <!-- ₱20 Coin Card -->
+        <div class="coin-card" id="card-p20">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱20</span>
+              <span class="coin-name-tag">TWENTY PESOS</span>
+            </div>
+            <div class="coin-status-badge" id="statusBadge20">LOCKED (0/₱100)</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count20">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal20">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar20" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Goal to Withdraw:</span>
+            <span class="threshold-val" id="progress20">₱0 / ₱100</span>
+          </div>
+          <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw20" disabled onclick="quickWithdrawDenom(20)">
+            WITHDRAW ₱100 (5 PCS)
+          </button>
+        </div>
+      </section>
+
+      <!-- Logs / Audit Trail Section -->
+      <section class="logs-section">
+        <div class="section-toolbar">
+          <div>
+            <h2 class="section-title">TRANSACTION LOGS & AUDIT TRAIL</h2>
+            <p class="section-sub">Permanent record of deposits and withdrawals (preserved forever)</p>
+          </div>
+          <div class="filter-group">
+            <button class="filter-btn active" data-filter="ALL">ALL RECORDS</button>
+            <button class="filter-btn" data-filter="DEPOSIT">DEPOSITS</button>
+            <button class="filter-btn" data-filter="WITHDRAWAL">WITHDRAWALS</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="logs-table">
+            <thead>
+              <tr>
+                <th>TIMESTAMP</th>
+                <th>EVENT TYPE</th>
+                <th>DENOMINATION</th>
+                <th>AMOUNT</th>
+                <th>CONTAINER SNAPSHOT</th>
+                <th>VAULT TOTAL</th>
+                <th>RECEIPT / STATUS</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <tr>
+                <td colspan="7" class="table-empty">Connecting to database...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Config Modal -->
+  <div class="modal-backdrop" id="configModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>SUPABASE CONNECTION CONFIG</h3>
+        <button class="close-modal" id="closeConfigBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="help-text">Enter your Supabase project credentials. These are securely stored in your browser's local storage.</p>
+        <div class="form-group">
+          <label for="supabaseUrlInput">PROJECT URL</label>
+          <input type="text" id="supabaseUrlInput" placeholder="https://your-project.supabase.co">
+        </div>
+        <div class="form-group">
+          <label for="supabaseKeyInput">ANON PUBLIC API KEY</label>
+          <input type="password" id="supabaseKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="cancelConfigBtn">CANCEL</button>
+        <button class="btn btn-primary" id="saveConfigBtn">SAVE & CONNECT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Selective ₱100 Withdrawal Modal -->
+  <div class="modal-backdrop" id="withdrawModal">
+    <div class="modal-box withdraw-modal-box">
+      <div class="modal-header">
+        <div>
+          <h3>SELECT COINS TO WITHDRAW</h3>
+          <span class="receipt-sub">RULE: Minimum ₱100 required per coin denomination</span>
+        </div>
+        <button class="close-modal" id="closeWithdrawBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Rule Notice Box -->
+        <div class="withdraw-rule-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div>
+            <strong>₱100 Minimum Threshold Condition:</strong>
+            <p>Select which coin denomination to withdraw. Each selected denomination must have at least ₱100 in the container.</p>
+          </div>
+        </div>
+
+        <!-- Coin Selection List -->
+        <div class="coin-select-list">
+          <!-- ₱1 Option -->
+          <div class="coin-select-item" id="selectItem1">
+            <div class="item-left">
+              <input type="checkbox" id="checkCoin1" onchange="recalculateWithdrawalSelection()">
+              <div class="coin-badge-sm">₱1</div>
+              <div class="item-details">
+                <span class="item-title">₱1.00 Coins</span>
+                <span class="item-sub" id="modalSubtext1">0 coins (₱0) &bull; Need ₱100 more</span>
+              </div>
+            </div>
+            <div class="item-right">
+              <select id="modeCoin1" class="mode-select" onchange="recalculateWithdrawalSelection()" disabled>
+                <option value="100">Withdraw ₱100 (100 pcs)</option>
+                <option value="ALL">Withdraw All</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ₱5 Option -->
+          <div class="coin-select-item" id="selectItem5">
+            <div class="item-left">
+              <input type="checkbox" id="checkCoin5" onchange="recalculateWithdrawalSelection()">
+              <div class="coin-badge-sm">₱5</div>
+              <div class="item-details">
+                <span class="item-title">₱5.00 Coins</span>
+                <span class="item-sub" id="modalSubtext5">0 coins (₱0) &bull; Need ₱100 more</span>
+              </div>
+            </div>
+            <div class="item-right">
+              <select id="modeCoin5" class="mode-select" onchange="recalculateWithdrawalSelection()" disabled>
+                <option value="100">Withdraw ₱100 (20 pcs)</option>
+                <option value="ALL">Withdraw All</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ₱10 Option -->
+          <div class="coin-select-item" id="selectItem10">
+            <div class="item-left">
+              <input type="checkbox" id="checkCoin10" onchange="recalculateWithdrawalSelection()">
+              <div class="coin-badge-sm">₱10</div>
+              <div class="item-details">
+                <span class="item-title">₱10.00 Coins</span>
+                <span class="item-sub" id="modalSubtext10">0 coins (₱0) &bull; Need ₱100 more</span>
+              </div>
+            </div>
+            <div class="item-right">
+              <select id="modeCoin10" class="mode-select" onchange="recalculateWithdrawalSelection()" disabled>
+                <option value="100">Withdraw ₱100 (10 pcs)</option>
+                <option value="ALL">Withdraw All</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ₱20 Option -->
+          <div class="coin-select-item" id="selectItem20">
+            <div class="item-left">
+              <input type="checkbox" id="checkCoin20" onchange="recalculateWithdrawalSelection()">
+              <div class="coin-badge-sm">₱20</div>
+              <div class="item-details">
+                <span class="item-title">₱20.00 Coins</span>
+                <span class="item-sub" id="modalSubtext20">0 coins (₱0) &bull; Need ₱100 more</span>
+              </div>
+            </div>
+            <div class="item-right">
+              <select id="modeCoin20" class="mode-select" onchange="recalculateWithdrawalSelection()" disabled>
+                <option value="100">Withdraw ₱100 (5 pcs)</option>
+                <option value="ALL">Withdraw All</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calculated Summary of Selection -->
+        <div class="withdraw-summary-box">
+          <div class="withdraw-line">
+            <span>Selected Amount to Withdraw:</span>
+            <strong id="modalWithdrawAmount" style="color: var(--accent-green); font-size: 1.15rem;">₱0</strong>
+          </div>
+          <div class="withdraw-line">
+            <span>Selected Coins to Disburse:</span>
+            <strong id="modalWithdrawCoins">0 pcs</strong>
+          </div>
+          <div class="withdraw-line">
+            <span>Remaining Container Balance:</span>
+            <strong id="modalRemainingBalance">₱0</strong>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="withdrawNotes">OFFICER NOTE / REMARKS (OPTIONAL)</label>
+          <input type="text" id="withdrawNotes" placeholder="e.g. Withdrew ₱100 batch of ₱20 coins">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="cancelWithdrawBtn">CANCEL</button>
+        <button class="btn btn-primary" id="confirmWithdrawBtn" disabled>SELECT COIN TO WITHDRAW</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Official Withdrawal Receipt Modal -->
+  <div class="modal-backdrop" id="receiptModal">
+    <div class="modal-box receipt-box" id="printableReceipt">
+      <div class="modal-header receipt-header">
+        <div class="receipt-header-left">
+          <div class="receipt-icon">🧾</div>
+          <div>
+            <h3>OFFICIAL DISBURSEMENT RECEIPT</h3>
+            <span class="receipt-sub">SMARTCOIN VAULT // GROUP 4 TELEMETRY</span>
+          </div>
+        </div>
+        <button class="close-modal no-print" id="closeReceiptBtn">&times;</button>
+      </div>
+
+      <div class="modal-body receipt-body">
+        <!-- Status Bar -->
+        <div class="receipt-status-banner">
+          <div class="status-left">
+            <span class="status-indicator-dot"></span>
+            <span class="status-title">STATUS: DISBURSED & CLEARED</span>
+          </div>
+          <span class="receipt-ref" id="receiptRefId">#RCP-000000</span>
+        </div>
+
+        <!-- Meta Information -->
+        <div class="receipt-meta-grid">
+          <div class="receipt-meta-item">
+            <span class="meta-label">DATE & TIME:</span>
+            <span class="meta-value" id="receiptDateTime">--</span>
+          </div>
+          <div class="receipt-meta-item">
+            <span class="meta-label">TERMINAL NODE:</span>
+            <span class="meta-value">ESP32 (IR4-CH)</span>
+          </div>
+          <div class="receipt-meta-item">
+            <span class="meta-label">LOGGED EVENT ID:</span>
+            <span class="meta-value" id="receiptLogId">#0</span>
+          </div>
+          <div class="receipt-meta-item">
+            <span class="meta-label">REMARKS / NOTE:</span>
+            <span class="meta-value" id="receiptNotes">Container Emptied</span>
+          </div>
+        </div>
+
+        <div class="receipt-divider"></div>
+
+        <!-- Coins Cleared Breakdown Table -->
+        <div class="receipt-breakdown">
+          <div class="breakdown-title">CLEARED COIN BREAKDOWN</div>
+          <table class="receipt-table">
+            <thead>
+              <tr>
+                <th>DENOMINATION</th>
+                <th>QUANTITY</th>
+                <th style="text-align: right;">SUBTOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>₱1.00 Coin</td>
+                <td id="receiptQty1">0 pcs</td>
+                <td style="text-align: right;" id="receiptSub1">₱0</td>
+              </tr>
+              <tr>
+                <td>₱5.00 Coin</td>
+                <td id="receiptQty5">0 pcs</td>
+                <td style="text-align: right;" id="receiptSub5">₱0</td>
+              </tr>
+              <tr>
+                <td>₱10.00 Coin</td>
+                <td id="receiptQty10">0 pcs</td>
+                <td style="text-align: right;" id="receiptSub10">₱0</td>
+              </tr>
+              <tr>
+                <td>₱20.00 Coin</td>
+                <td id="receiptQty20">0 pcs</td>
+                <td style="text-align: right;" id="receiptSub20">₱0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="receipt-divider"></div>
+
+        <!-- Grand Total Summary -->
+        <div class="receipt-grand-total">
+          <div class="grand-total-row">
+            <span>TOTAL COINS COLLECTED</span>
+            <strong id="receiptTotalCoins">0 PCS</strong>
+          </div>
+          <div class="grand-total-row highlight">
+            <span>NET AMOUNT WITHDRAWN</span>
+            <strong class="receipt-amount-display" id="receiptTotalAmount">₱0</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer receipt-footer no-print">
+        <button class="btn btn-outline" id="printReceiptBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+          PRINT RECEIPT
+        </button>
+        <button class="btn btn-primary" id="dismissReceiptBtn">DONE / DISMISS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Safety Confirmation Modal (Avoid Accidental Clicks) -->
+  <div class="modal-backdrop" id="confirmationModal">
+    <div class="modal-box confirm-box">
+      <div class="modal-header confirm-header">
+        <div class="confirm-header-content">
+          <div class="confirm-alert-icon">⚠️</div>
+          <div>
+            <h3 class="confirm-title">CONFIRM COIN WITHDRAWAL</h3>
+            <span class="confirm-subtitle">SAFETY VERIFICATION & DISBURSEMENT CHECK</span>
+          </div>
+        </div>
+        <button class="close-modal" id="closeConfirmBtn">&times;</button>
+      </div>
+      <div class="modal-body confirm-body">
+        <p class="confirm-text">
+          Are you sure you want to disburse coins from the vault? Please verify the transaction details below to avoid accidental disbursement:
+        </p>
+        <div class="confirm-summary-card">
+          <div class="confirm-summary-row">
+            <span class="confirm-label">AMOUNT TO WITHDRAW:</span>
+            <strong class="confirm-val highlight-amount" id="confirmAmountText">₱100</strong>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">COINS TO DISBURSE:</span>
+            <span class="confirm-val" id="confirmCoinsText">5 pcs (₱20 Coins)</span>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">REMAINING BALANCE:</span>
+            <span class="confirm-val" id="confirmRemainingText">₱0</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer confirm-footer">
+        <button class="btn btn-outline" id="abortConfirmBtn">CANCEL / GO BACK</button>
+        <button class="btn btn-danger-confirm" id="proceedConfirmBtn">YES, CONFIRM & DISBURSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
