@@ -85,6 +85,7 @@ function initSupabase() {
     setConnectionState('CONNECTED', 'connected');
     fetchContainerData();
     fetchLogs();
+    fetchLatestWithdrawCommand();
     subscribeToRealtime();
   } catch (err) {
     console.error('Supabase initialization error:', err);
@@ -164,6 +165,16 @@ function subscribeToRealtime() {
         } else if (payload.new.event_type === 'WITHDRAWAL') {
           showToast(`💸 ₱${payload.new.amount} Disbursed from Vault!`);
         }
+      }
+    })
+    .subscribe();
+
+  // Listen to changes in withdraw_commands (ESP32 Servo Coin Dispenser)
+  supabaseClient
+    .channel('withdraw-commands-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'withdraw_commands' }, payload => {
+      if (payload.new) {
+        handleWithdrawCommandUpdate(payload.new);
       }
     })
     .subscribe();
@@ -353,6 +364,9 @@ function updateContainerUI(data) {
     btnQ20.disabled = (sub20 < 100);
     btnQ20.textContent = (sub20 < 100) ? '🔒 LOCKED (< ₱100)' : 'WITHDRAW ₱100 (5 PCS)';
   }
+
+  // Update Automated Coin Dispenser Hub Stock
+  updateDispenserStockUI(count1, count5, count10, count20);
 
   // Timestamp
   if (data.updated_at) {
@@ -997,17 +1011,11 @@ saveConfigBtn.addEventListener('click', () => {
   initSupabase();
 });
 
-function openWithdrawModal() {
-  const totalCoins = (currentContainer.count_1 || 0) + (currentContainer.count_5 || 0) + (currentContainer.count_10 || 0) + (currentContainer.count_20 || 0);
-  modalWithdrawAmount.textContent = `₱${currentContainer.total_pesos || 0}`;
-  modalWithdrawCoins.textContent = `${totalCoins} pcs`;
-  withdrawModal.classList.add('active');
-}
 function closeWithdrawModal() {
-  withdrawModal.classList.remove('active');
+  withdrawModal?.classList.remove('active');
 }
 
-withdrawBtn.addEventListener('click', openWithdrawModal);
+withdrawBtn?.addEventListener('click', openWithdrawModal);
 closeWithdrawBtn.addEventListener('click', closeWithdrawModal);
 cancelWithdrawBtn.addEventListener('click', closeWithdrawModal);
 confirmWithdrawBtn.addEventListener('click', executeWithdrawal);
@@ -1022,6 +1030,320 @@ function showToast(message) {
     toast.remove();
   }, 4000);
 }
+
+// ========================================================
+// 9. AUTOMATED COIN DISPENSER (0° -> 180° -> 0° CONTROLLER)
+// ========================================================
+let activeWithdrawCmd = null;
+let withdrawPollInterval = null;
+let dispenserResetTimer = null;
+let isDispenseInProgress = false;
+
+const dispenserStatusBadge = document.getElementById('dispenserStatusBadge');
+const dispenserStatusText = document.getElementById('dispenserStatusText');
+const dispenserLastCommandId = document.getElementById('dispenserLastCommandId');
+const dispenserLastTime = document.getElementById('dispenserLastTime');
+const dispenserServoAngle = document.getElementById('dispenserServoAngle');
+
+const dispenseBtn1 = document.getElementById('dispenseBtn1');
+const dispenseBtn5 = document.getElementById('dispenseBtn5');
+const dispenseBtn10 = document.getElementById('dispenseBtn10');
+const dispenseBtn20 = document.getElementById('dispenseBtn20');
+
+const dispenseItem1 = document.getElementById('dispenseItem1');
+const dispenseItem5 = document.getElementById('dispenseItem5');
+const dispenseItem10 = document.getElementById('dispenseItem10');
+const dispenseItem20 = document.getElementById('dispenseItem20');
+
+const dispenserStock1 = document.getElementById('dispenserStock1');
+const dispenserStock5 = document.getElementById('dispenserStock5');
+const dispenserStock10 = document.getElementById('dispenserStock10');
+const dispenserStock20 = document.getElementById('dispenserStock20');
+
+// Update real-time dispenser stocks & lock empty tubes
+function updateDispenserStockUI(count1, count5, count10, count20) {
+  const stocks = [
+    { denom: 1, count: count1, stockEl: dispenserStock1, btnEl: dispenseBtn1, itemEl: dispenseItem1 },
+    { denom: 5, count: count5, stockEl: dispenserStock5, btnEl: dispenseBtn5, itemEl: dispenseItem5 },
+    { denom: 10, count: count10, stockEl: dispenserStock10, btnEl: dispenseBtn10, itemEl: dispenseItem10 },
+    { denom: 20, count: count20, stockEl: dispenserStock20, btnEl: dispenseBtn20, itemEl: dispenseItem20 }
+  ];
+
+  stocks.forEach(({ denom, count, stockEl, btnEl, itemEl }) => {
+    if (stockEl) {
+      stockEl.textContent = `${count} COIN${count === 1 ? '' : 'S'}`;
+    }
+
+    if (btnEl && !isDispenseInProgress) {
+      if (count <= 0) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = `<span>EMPTY TUBE</span>`;
+        itemEl?.classList.add('empty-tube');
+      } else {
+        btnEl.disabled = false;
+        btnEl.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+          <span>WITHDRAW ₱${denom}</span>
+        `;
+        itemEl?.classList.remove('empty-tube');
+      }
+    }
+  });
+}
+
+// Request coin dispense from Web -> Supabase -> ESP32
+async function requestCoinDispense(denomination) {
+  if (!supabaseClient) {
+    showToast('Database disconnected. Please check your Supabase API configuration.');
+    return;
+  }
+
+  if (isDispenseInProgress) {
+    showToast('⚠️ A coin withdrawal is already in progress. Please wait.');
+    return;
+  }
+
+  const stockKey = `count_${denomination}`;
+  const currentStock = currentContainer[stockKey] || 0;
+  if (currentStock <= 0) {
+    showToast(`⚠️ Tube for ₱${denomination} is empty! Cannot withdraw.`);
+    return;
+  }
+
+  setDispenserButtonsBusy(true, denomination);
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('withdraw_commands')
+      .insert({
+        denomination: denomination,
+        quantity: 1,
+        status: 'pending',
+        notes: `Web remote 1-coin dispense: ₱${denomination}`
+      })
+      .select('id, denomination')
+      .single();
+
+    if (error) throw error;
+
+    console.log('[Dispenser] Command queued:', data.id);
+    activeWithdrawCmd = { id: data.id, denomination: data.denomination, status: 'pending' };
+
+    updateDispenserUIState('pending', data.id, denomination);
+    showToast(`🪙 Dispense command #${data.id} queued for ₱${denomination}! Waiting for ESP32...`);
+
+    // Start fallback polling watchdog so UI is snappy even if Realtime drops
+    startWithdrawPolling(data.id, denomination);
+  } catch (err) {
+    console.error('Withdraw dispense request failed:', err);
+    showToast('Failed to queue withdrawal command. Please try again.');
+    setDispenserButtonsBusy(false);
+  }
+}
+
+function setDispenserButtonsBusy(isBusy, activeDenom = null) {
+  isDispenseInProgress = isBusy;
+  const btns = [dispenseBtn1, dispenseBtn5, dispenseBtn10, dispenseBtn20];
+  const items = [dispenseItem1, dispenseItem5, dispenseItem10, dispenseItem20];
+
+  btns.forEach(btn => {
+    if (btn) btn.disabled = isBusy;
+  });
+
+  items.forEach(item => {
+    if (item) item.classList.remove('dispensing-active');
+  });
+
+  if (isBusy && activeDenom) {
+    const activeItem = document.getElementById(`dispenseItem${activeDenom}`);
+    if (activeItem) activeItem.classList.add('dispensing-active');
+
+    const activeBtn = document.getElementById(`dispenseBtn${activeDenom}`);
+    if (activeBtn) {
+      activeBtn.classList.add('active-dispensing');
+      activeBtn.innerHTML = `
+        <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+        </svg>
+        <span>DISPENSING...</span>
+      `;
+    }
+  } else {
+    btns.forEach(btn => btn?.classList.remove('active-dispensing'));
+    updateDispenserStockUI(
+      currentContainer.count_1 || 0,
+      currentContainer.count_5 || 0,
+      currentContainer.count_10 || 0,
+      currentContainer.count_20 || 0
+    );
+  }
+}
+
+function startWithdrawPolling(cmdId, denom) {
+  stopWithdrawPolling();
+  let pollCount = 0;
+
+  withdrawPollInterval = setInterval(async () => {
+    if (!supabaseClient || !cmdId) {
+      stopWithdrawPolling();
+      return;
+    }
+
+    pollCount++;
+    try {
+      const { data, error } = await supabaseClient
+        .from('withdraw_commands')
+        .select('*')
+        .eq('id', cmdId)
+        .single();
+
+      if (!error && data) {
+        if (data.status === 'completed' || data.status === 'failed') {
+          handleWithdrawCommandUpdate(data);
+          stopWithdrawPolling();
+          return;
+        } else if (data.status === 'running') {
+          handleWithdrawCommandUpdate(data);
+        }
+      }
+    } catch (e) {
+      console.warn('[Dispenser] Poll check error:', e);
+    }
+
+    // Safety timeout: If polling exceeds 12 seconds
+    if (pollCount > 10) {
+      stopWithdrawPolling();
+      if (activeWithdrawCmd && activeWithdrawCmd.status === 'running') {
+        completeWithdrawDirectly(cmdId, denom);
+      } else {
+        setDispenserButtonsBusy(false);
+      }
+    }
+  }, 1200);
+}
+
+function stopWithdrawPolling() {
+  if (withdrawPollInterval) {
+    clearInterval(withdrawPollInterval);
+    withdrawPollInterval = null;
+  }
+}
+
+async function completeWithdrawDirectly(cmdId, denom) {
+  try {
+    await supabaseClient
+      .from('withdraw_commands')
+      .update({ status: 'completed' })
+      .eq('id', cmdId);
+    handleWithdrawCommandUpdate({ id: cmdId, denomination: denom, status: 'completed' });
+  } catch (e) {
+    console.warn('Auto-completion update error:', e);
+  }
+}
+
+function handleWithdrawCommandUpdate(command) {
+  if (!command) return;
+  const { id, denomination, status, created_at, completed_at } = command;
+  activeWithdrawCmd = command;
+
+  updateDispenserUIState(status, id, denomination, completed_at || created_at);
+
+  if (status === 'completed') {
+    stopWithdrawPolling();
+    showToast(`✅ ₱${denomination} coin successfully dispensed by Servo!`);
+    fetchContainerData();
+    fetchLogs();
+  } else if (status === 'failed') {
+    stopWithdrawPolling();
+    showToast(`❌ Dispense failed for ₱${denomination}. Check ESP32 hardware.`);
+    setDispenserButtonsBusy(false);
+  }
+}
+
+function updateDispenserUIState(status, id, denom, timestamp) {
+  if (dispenserLastCommandId && id) {
+    dispenserLastCommandId.textContent = `#CMD-${String(id).padStart(4, '0')}`;
+  }
+
+  if (dispenserLastTime && timestamp) {
+    const d = new Date(timestamp);
+    dispenserLastTime.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  if (dispenserResetTimer) {
+    clearTimeout(dispenserResetTimer);
+    dispenserResetTimer = null;
+  }
+
+  if (dispenserStatusBadge) {
+    dispenserStatusBadge.className = `dispenser-status-pill status-${status}`;
+  }
+
+  if (status === 'pending') {
+    if (dispenserStatusText) dispenserStatusText.textContent = `QUEUED: ₱${denom} (WAITING ESP32)`;
+    if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (READY)';
+  } else if (status === 'running') {
+    if (dispenserStatusText) dispenserStatusText.textContent = `DISPENSING ₱${denom} (SERVO ACTIVE)`;
+    if (dispenserServoAngle) dispenserServoAngle.textContent = '180° (DISPENSING COIN)';
+    setDispenserButtonsBusy(true, denom);
+  } else if (status === 'completed') {
+    if (dispenserStatusText) dispenserStatusText.textContent = `DISPENSED ₱${denom} // 180° ➔ 0° RESET`;
+    if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (RESET TO HOME)';
+    setDispenserButtonsBusy(false);
+
+    dispenserResetTimer = setTimeout(() => {
+      resetDispenserToIdle();
+    }, 3500);
+  } else if (status === 'failed') {
+    if (dispenserStatusText) dispenserStatusText.textContent = 'FAILED / TIMEOUT';
+    if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (HALTED)';
+    setDispenserButtonsBusy(false);
+  } else {
+    resetDispenserToIdle();
+  }
+}
+
+function resetDispenserToIdle() {
+  if (dispenserStatusBadge) {
+    dispenserStatusBadge.className = 'dispenser-status-pill status-idle';
+  }
+  if (dispenserStatusText) dispenserStatusText.textContent = 'STANDBY / READY';
+  if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (HOME)';
+  setDispenserButtonsBusy(false);
+  activeWithdrawCmd = null;
+}
+
+// Fetch latest command on page boot
+async function fetchLatestWithdrawCommand() {
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('withdraw_commands')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) {
+      if (dispenserLastCommandId) dispenserLastCommandId.textContent = `#CMD-${String(data.id).padStart(4, '0')}`;
+      if (dispenserLastTime && data.created_at) {
+        const d = new Date(data.created_at);
+        dispenserLastTime.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+      if (data.status === 'pending' || data.status === 'running') {
+        handleWithdrawCommandUpdate(data);
+      }
+    }
+  } catch (e) {
+    console.warn('Error fetching latest withdraw command:', e);
+  }
+}
+
+// Global hooks
+window.requestCoinDispense = requestCoinDispense;
 
 // Run on page load
 window.addEventListener('DOMContentLoaded', initSupabase);
