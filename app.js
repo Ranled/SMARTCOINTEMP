@@ -512,23 +512,17 @@ window.quickWithdrawDenom = function(denom) {
 
         showToast(`Successfully withdrawn ₱100 (${withdrawCoins} pcs of ₱${denom})! Hardware servo actuated.`);
 
-        // Show hardware progress animation (0° ➔ 180° ➔ 0°), then open official receipt
-        showDispenseProgress({
-          denom: denom,
-          coinsText: `₱100 (${withdrawCoins} pcs of ₱${denom} coins)`,
-          onComplete: () => {
-            openReceipt({
-              id: insertedLog?.id || Date.now(),
-              created_at: insertedLog?.created_at || new Date().toISOString(),
-              amount: withdrawAmount,
-              notes: notes,
-              breakdown: {
-                qty1: (denom === 1 ? withdrawCoins : 0),
-                qty5: (denom === 5 ? withdrawCoins : 0),
-                qty10: (denom === 10 ? withdrawCoins : 0),
-                qty20: (denom === 20 ? withdrawCoins : 0)
-              }
-            });
+        // Show receipt
+        openReceipt({
+          id: insertedLog?.id || Date.now(),
+          created_at: insertedLog?.created_at || new Date().toISOString(),
+          amount: withdrawAmount,
+          notes: notes,
+          breakdown: {
+            qty1: (denom === 1 ? withdrawCoins : 0),
+            qty5: (denom === 5 ? withdrawCoins : 0),
+            qty10: (denom === 10 ? withdrawCoins : 0),
+            qty20: (denom === 20 ? withdrawCoins : 0)
           }
         });
 
@@ -940,23 +934,17 @@ async function executeWithdrawal() {
         closeWithdrawModal();
         withdrawNotesInput.value = '';
 
-        // Show hardware progress animation (0° ➔ 180° ➔ 0°), then open official receipt
-        showDispenseProgress({
-          denom: 0,
-          coinsText: `₱${totalWithdrawnAmount.toLocaleString()} (${coinsDescription})`,
-          onComplete: () => {
-            openReceipt({
-              id: insertedLog?.id || Date.now(),
-              created_at: insertedLog?.created_at || new Date().toISOString(),
-              amount: totalWithdrawnAmount,
-              notes: notes,
-              breakdown: {
-                qty1: w1.coins,
-                qty5: w5.coins,
-                qty10: w10.coins,
-                qty20: w20.coins
-              }
-            });
+        // Show the official receipt immediately
+        openReceipt({
+          id: insertedLog?.id || Date.now(),
+          created_at: insertedLog?.created_at || new Date().toISOString(),
+          amount: totalWithdrawnAmount,
+          notes: notes,
+          breakdown: {
+            qty1: w1.coins,
+            qty5: w5.coins,
+            qty10: w10.coins,
+            qty20: w20.coins
           }
         });
 
@@ -971,80 +959,6 @@ async function executeWithdrawal() {
       }
     }
   });
-}
-
-// Hardware Dispense Progress Orchestrator (0° -> 180° -> 0°)
-const dispenseProgressModal = document.getElementById('dispenseProgressModal');
-const progressServoArm = document.getElementById('progressServoArm');
-const progressServoAngleText = document.getElementById('progressServoAngleText');
-const progressDenomText = document.getElementById('progressDenomText');
-const dispenseProgressBarFill = document.getElementById('dispenseProgressBarFill');
-
-function showDispenseProgress({ denom, coinsText, onComplete }) {
-  if (!dispenseProgressModal) {
-    if (typeof onComplete === 'function') onComplete();
-    return;
-  }
-
-  // Open modal
-  dispenseProgressModal.classList.add('active');
-
-  // Reset visual elements
-  if (progressDenomText) progressDenomText.textContent = coinsText;
-  if (dispenseProgressBarFill) dispenseProgressBarFill.style.width = '15%';
-  if (progressServoArm) progressServoArm.style.transform = 'rotate(-90deg)'; // -90deg is 0°
-  if (progressServoAngleText) progressServoAngleText.textContent = '0° (DISPATCHING COMMAND)';
-
-  const setStepState = (stepNum) => {
-    for (let i = 1; i <= 4; i++) {
-      const stepEl = document.getElementById(`dispenseStep${i}`);
-      if (!stepEl) continue;
-      const iconEl = stepEl.querySelector('.step-icon');
-      if (i < stepNum) {
-        stepEl.className = 'servo-step-item completed';
-        if (iconEl) iconEl.textContent = '✓';
-      } else if (i === stepNum) {
-        stepEl.className = 'servo-step-item active';
-        if (iconEl) iconEl.textContent = String(i);
-      } else {
-        stepEl.className = 'servo-step-item';
-        if (iconEl) iconEl.textContent = String(i);
-      }
-    }
-  };
-
-  setStepState(1);
-
-  // Stage 1: Command claimed -> Servo rotates to 180° (Drop Coin)
-  setTimeout(() => {
-    setStepState(2);
-    if (progressServoArm) progressServoArm.style.transform = 'rotate(90deg)'; // 180°
-    if (progressServoAngleText) progressServoAngleText.textContent = '180° (DROPPING COIN)';
-    if (dispenseProgressBarFill) dispenseProgressBarFill.style.width = '55%';
-  }, 650);
-
-  // Stage 2: Hold at 180° -> Servo returns to 0° (Reset Home)
-  setTimeout(() => {
-    setStepState(3);
-    if (progressServoArm) progressServoArm.style.transform = 'rotate(-90deg)'; // 0°
-    if (progressServoAngleText) progressServoAngleText.textContent = '0° (RESETTING HOME)';
-    if (dispenseProgressBarFill) dispenseProgressBarFill.style.width = '85%';
-  }, 1450);
-
-  // Stage 3: Completed & verified
-  setTimeout(() => {
-    setStepState(4);
-    if (progressServoAngleText) progressServoAngleText.textContent = '0° (COMPLETE & VERIFIED)';
-    if (dispenseProgressBarFill) dispenseProgressBarFill.style.width = '100%';
-  }, 2150);
-
-  // Stage 4: Close progress modal and transition to official receipt
-  setTimeout(() => {
-    dispenseProgressModal.classList.remove('active');
-    if (typeof onComplete === 'function') {
-      onComplete();
-    }
-  }, 2650);
 }
 
 // 8. Official Receipt Modal Logic
