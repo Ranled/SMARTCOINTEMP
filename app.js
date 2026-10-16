@@ -342,31 +342,40 @@ function updateContainerUI(data) {
     `;
   }
 
-  // Quick direct withdrawal buttons on cards with strict locking indicators
-  const btnQ1 = document.getElementById('quickWithdraw1');
-  const btnQ5 = document.getElementById('quickWithdraw5');
-  const btnQ10 = document.getElementById('quickWithdraw10');
-  const btnQ20 = document.getElementById('quickWithdraw20');
+  // Quick direct withdrawal buttons on cards with strict ₱100 locking indicators & servo telemetry
+  const denoms = [
+    { denom: 1, sub: sub1, count: count1, pcs: 100 },
+    { denom: 5, sub: sub5, count: count5, pcs: 20 },
+    { denom: 10, sub: sub10, count: count10, pcs: 10 },
+    { denom: 20, sub: sub20, count: count20, pcs: 5 }
+  ];
 
-  if (btnQ1) {
-    btnQ1.disabled = (sub1 < 100);
-    btnQ1.textContent = (sub1 < 100) ? '🔒 LOCKED (< ₱100)' : 'WITHDRAW ₱100 (100 PCS)';
-  }
-  if (btnQ5) {
-    btnQ5.disabled = (sub5 < 100);
-    btnQ5.textContent = (sub5 < 100) ? '🔒 LOCKED (< ₱100)' : 'WITHDRAW ₱100 (20 PCS)';
-  }
-  if (btnQ10) {
-    btnQ10.disabled = (sub10 < 100);
-    btnQ10.textContent = (sub10 < 100) ? '🔒 LOCKED (< ₱100)' : 'WITHDRAW ₱100 (10 PCS)';
-  }
-  if (btnQ20) {
-    btnQ20.disabled = (sub20 < 100);
-    btnQ20.textContent = (sub20 < 100) ? '🔒 LOCKED (< ₱100)' : 'WITHDRAW ₱100 (5 PCS)';
-  }
+  denoms.forEach(({ denom, sub, count, pcs }) => {
+    const btn = document.getElementById(`quickWithdraw${denom}`);
+    const angleBadge = document.getElementById(`servoAngleBadge${denom}`);
 
-  // Update Automated Coin Dispenser Hub Stock
-  updateDispenserStockUI(count1, count5, count10, count20);
+    if (btn && !btn.classList.contains('dispensing')) {
+      if (sub < 100) {
+        btn.disabled = true;
+        btn.className = 'btn btn-outline btn-sm btn-quick-withdraw locked';
+        btn.innerHTML = '🔒 LOCKED (&lt; ₱100)';
+      } else {
+        btn.disabled = isDispenseInProgress;
+        btn.className = 'btn btn-outline btn-sm btn-quick-withdraw ready';
+        btn.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+          <span>WITHDRAW ₱100 (${pcs} PCS)</span>
+        `;
+      }
+    }
+
+    if (angleBadge && !angleBadge.classList.contains('active-180')) {
+      angleBadge.textContent = '0° HOME';
+      angleBadge.className = 'servo-angle-badge';
+    }
+  });
 
   // Timestamp
   if (data.updated_at) {
@@ -393,7 +402,7 @@ function updateThresholdInfo(progressId, badgeId, subtotal) {
   }
 }
 
-// Quick ₱100 Withdrawal directly from coin card (with confirmation safety prompt)
+// Quick ₱100 Withdrawal directly from coin card with physical servo actuation
 window.quickWithdrawDenom = function(denom) {
   const countKey = `count_${denom}`;
   const currentCoins = currentContainer[countKey] || 0;
@@ -420,15 +429,29 @@ window.quickWithdrawDenom = function(denom) {
   const remaining20 = (denom === 20) ? remainingCoins : (currentContainer.count_20 || 0);
 
   const remainingTotal = (remaining1 * 1) + (remaining5 * 5) + (remaining10 * 10) + (remaining20 * 20);
-  const notes = `Direct ₱100 batch withdrawal of ₱${denom} coins (${withdrawCoins} pcs)`;
+  const notes = `Automated ₱100 batch withdrawal of ₱${denom} coins (${withdrawCoins} pcs)`;
 
   // Open Safety Confirmation Modal to avoid accidental clicks!
   openConfirmationModal({
     amount: withdrawAmount,
-    coinsText: `${withdrawCoins} pcs of ₱${denom} coins`,
+    coinsText: `${withdrawCoins} pcs of ₱${denom} coins (Servo Actuation)`,
     remaining: remainingTotal,
     onConfirm: async () => {
       showToast(`Processing ₱100 withdrawal of ₱${denom} coins...`);
+
+      const btn = document.getElementById(`quickWithdraw${denom}`);
+      const angleBadge = document.getElementById(`servoAngleBadge${denom}`);
+
+      if (btn) {
+        btn.disabled = true;
+        btn.className = 'btn btn-outline btn-sm btn-quick-withdraw dispensing';
+        btn.innerHTML = `<span class="spin-icon">⏳</span> <span>DISPENSING VIA SERVO...</span>`;
+      }
+      if (angleBadge) {
+        angleBadge.textContent = '180° ACTIVE';
+        angleBadge.className = 'servo-angle-badge active-180';
+      }
+      isDispenseInProgress = true;
 
       try {
         const withdrawalLogData = {
@@ -468,7 +491,26 @@ window.quickWithdrawDenom = function(denom) {
 
         if (containerError) throw containerError;
 
-        showToast(`Successfully withdrawn ₱100 (${withdrawCoins} pcs of ₱${denom})!`);
+        // 3. Queue hardware servo command in withdraw_commands for ESP32
+        const { data: cmdData, error: cmdError } = await supabaseClient
+          .from('withdraw_commands')
+          .insert({
+            denomination: denom,
+            quantity: withdrawCoins,
+            status: 'pending',
+            notes: notes
+          })
+          .select()
+          .single();
+
+        if (cmdError) {
+          console.warn('[Dispenser] Hardware servo queue error:', cmdError);
+        } else if (cmdData) {
+          activeWithdrawCmd = cmdData;
+          startWithdrawPolling(cmdData.id, denom);
+        }
+
+        showToast(`Successfully withdrawn ₱100 (${withdrawCoins} pcs of ₱${denom})! Hardware servo actuated.`);
 
         // Show receipt
         openReceipt({
@@ -489,6 +531,8 @@ window.quickWithdrawDenom = function(denom) {
       } catch (err) {
         console.error('Quick withdrawal error:', err);
         showToast('Failed to execute quick withdrawal');
+        isDispenseInProgress = false;
+        fetchContainerData();
       }
     }
   });
@@ -865,7 +909,28 @@ async function executeWithdrawal() {
 
         if (containerError) throw containerError;
 
-        showToast(`Successfully withdrawn ₱${totalWithdrawnAmount.toLocaleString()}!`);
+        // 3. Queue hardware servo commands in withdraw_commands for ESP32
+        const disbursedList = [
+          { denom: 1, qty: w1.coins },
+          { denom: 5, qty: w5.coins },
+          { denom: 10, qty: w10.coins },
+          { denom: 20, qty: w20.coins }
+        ];
+
+        for (const item of disbursedList) {
+          if (item.qty > 0) {
+            await supabaseClient
+              .from('withdraw_commands')
+              .insert({
+                denomination: item.denom,
+                quantity: item.qty,
+                status: 'pending',
+                notes: `Batch withdrawal: ${item.qty} pcs of ₱${item.denom}`
+              });
+          }
+        }
+
+        showToast(`Successfully withdrawn ₱${totalWithdrawnAmount.toLocaleString()}! Hardware servo actuation queued.`);
         closeWithdrawModal();
         withdrawNotesInput.value = '';
 
@@ -1032,6 +1097,7 @@ function showToast(message) {
 }
 
 // ========================================================
+// ========================================================
 // 9. AUTOMATED COIN DISPENSER (0° -> 180° -> 0° CONTROLLER)
 // ========================================================
 let activeWithdrawCmd = null;
@@ -1039,147 +1105,50 @@ let withdrawPollInterval = null;
 let dispenserResetTimer = null;
 let isDispenseInProgress = false;
 
-const dispenserStatusBadge = document.getElementById('dispenserStatusBadge');
-const dispenserStatusText = document.getElementById('dispenserStatusText');
-const dispenserLastCommandId = document.getElementById('dispenserLastCommandId');
-const dispenserLastTime = document.getElementById('dispenserLastTime');
-const dispenserServoAngle = document.getElementById('dispenserServoAngle');
+function setDispenserButtonsBusy(isBusy, activeDenom = null) {
+  isDispenseInProgress = isBusy;
+  const denoms = [1, 5, 10, 20];
 
-const dispenseBtn1 = document.getElementById('dispenseBtn1');
-const dispenseBtn5 = document.getElementById('dispenseBtn5');
-const dispenseBtn10 = document.getElementById('dispenseBtn10');
-const dispenseBtn20 = document.getElementById('dispenseBtn20');
+  denoms.forEach(d => {
+    const btn = document.getElementById(`quickWithdraw${d}`);
+    const angleBadge = document.getElementById(`servoAngleBadge${d}`);
+    const subtotal = (currentContainer[`count_${d}`] || 0) * d;
 
-const dispenseItem1 = document.getElementById('dispenseItem1');
-const dispenseItem5 = document.getElementById('dispenseItem5');
-const dispenseItem10 = document.getElementById('dispenseItem10');
-const dispenseItem20 = document.getElementById('dispenseItem20');
-
-const dispenserStock1 = document.getElementById('dispenserStock1');
-const dispenserStock5 = document.getElementById('dispenserStock5');
-const dispenserStock10 = document.getElementById('dispenserStock10');
-const dispenserStock20 = document.getElementById('dispenserStock20');
-
-// Update real-time dispenser stocks & lock empty tubes
-function updateDispenserStockUI(count1, count5, count10, count20) {
-  const stocks = [
-    { denom: 1, count: count1, stockEl: dispenserStock1, btnEl: dispenseBtn1, itemEl: dispenseItem1 },
-    { denom: 5, count: count5, stockEl: dispenserStock5, btnEl: dispenseBtn5, itemEl: dispenseItem5 },
-    { denom: 10, count: count10, stockEl: dispenserStock10, btnEl: dispenseBtn10, itemEl: dispenseItem10 },
-    { denom: 20, count: count20, stockEl: dispenserStock20, btnEl: dispenseBtn20, itemEl: dispenseItem20 }
-  ];
-
-  stocks.forEach(({ denom, count, stockEl, btnEl, itemEl }) => {
-    if (stockEl) {
-      stockEl.textContent = `${count} COIN${count === 1 ? '' : 'S'}`;
+    if (btn) {
+      if (isBusy && d === activeDenom) {
+        btn.disabled = true;
+        btn.className = 'btn btn-outline btn-sm btn-quick-withdraw dispensing';
+        btn.innerHTML = `<span class="spin-icon">⏳</span> <span>DISPENSING VIA SERVO...</span>`;
+      } else if (isBusy) {
+        btn.disabled = true;
+      } else {
+        if (subtotal < 100) {
+          btn.disabled = true;
+          btn.className = 'btn btn-outline btn-sm btn-quick-withdraw locked';
+          btn.innerHTML = '🔒 LOCKED (&lt; ₱100)';
+        } else {
+          btn.disabled = false;
+          btn.className = 'btn btn-outline btn-sm btn-quick-withdraw ready';
+          btn.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            <span>WITHDRAW ₱100 (${100 / d} PCS)</span>
+          `;
+        }
+      }
     }
 
-    if (btnEl && !isDispenseInProgress) {
-      if (count <= 0) {
-        btnEl.disabled = true;
-        btnEl.innerHTML = `<span>EMPTY TUBE</span>`;
-        itemEl?.classList.add('empty-tube');
-      } else {
-        btnEl.disabled = false;
-        btnEl.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-          </svg>
-          <span>WITHDRAW ₱${denom}</span>
-        `;
-        itemEl?.classList.remove('empty-tube');
+    if (angleBadge) {
+      if (isBusy && d === activeDenom) {
+        angleBadge.textContent = '180° ACTIVE';
+        angleBadge.className = 'servo-angle-badge active-180';
+      } else if (!isBusy) {
+        angleBadge.textContent = '0° HOME';
+        angleBadge.className = 'servo-angle-badge';
       }
     }
   });
-}
-
-// Request coin dispense from Web -> Supabase -> ESP32
-async function requestCoinDispense(denomination) {
-  if (!supabaseClient) {
-    showToast('Database disconnected. Please check your Supabase API configuration.');
-    return;
-  }
-
-  if (isDispenseInProgress) {
-    showToast('⚠️ A coin withdrawal is already in progress. Please wait.');
-    return;
-  }
-
-  const stockKey = `count_${denomination}`;
-  const currentStock = currentContainer[stockKey] || 0;
-  if (currentStock <= 0) {
-    showToast(`⚠️ Tube for ₱${denomination} is empty! Cannot withdraw.`);
-    return;
-  }
-
-  setDispenserButtonsBusy(true, denomination);
-
-  try {
-    const { data, error } = await supabaseClient
-      .from('withdraw_commands')
-      .insert({
-        denomination: denomination,
-        quantity: 1,
-        status: 'pending',
-        notes: `Web remote 1-coin dispense: ₱${denomination}`
-      })
-      .select('id, denomination')
-      .single();
-
-    if (error) throw error;
-
-    console.log('[Dispenser] Command queued:', data.id);
-    activeWithdrawCmd = { id: data.id, denomination: data.denomination, status: 'pending' };
-
-    updateDispenserUIState('pending', data.id, denomination);
-    showToast(`🪙 Dispense command #${data.id} queued for ₱${denomination}! Waiting for ESP32...`);
-
-    // Start fallback polling watchdog so UI is snappy even if Realtime drops
-    startWithdrawPolling(data.id, denomination);
-  } catch (err) {
-    console.error('Withdraw dispense request failed:', err);
-    showToast('Failed to queue withdrawal command. Please try again.');
-    setDispenserButtonsBusy(false);
-  }
-}
-
-function setDispenserButtonsBusy(isBusy, activeDenom = null) {
-  isDispenseInProgress = isBusy;
-  const btns = [dispenseBtn1, dispenseBtn5, dispenseBtn10, dispenseBtn20];
-  const items = [dispenseItem1, dispenseItem5, dispenseItem10, dispenseItem20];
-
-  btns.forEach(btn => {
-    if (btn) btn.disabled = isBusy;
-  });
-
-  items.forEach(item => {
-    if (item) item.classList.remove('dispensing-active');
-  });
-
-  if (isBusy && activeDenom) {
-    const activeItem = document.getElementById(`dispenseItem${activeDenom}`);
-    if (activeItem) activeItem.classList.add('dispensing-active');
-
-    const activeBtn = document.getElementById(`dispenseBtn${activeDenom}`);
-    if (activeBtn) {
-      activeBtn.classList.add('active-dispensing');
-      activeBtn.innerHTML = `
-        <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
-          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
-        </svg>
-        <span>DISPENSING...</span>
-      `;
-    }
-  } else {
-    btns.forEach(btn => btn?.classList.remove('active-dispensing'));
-    updateDispenserStockUI(
-      currentContainer.count_1 || 0,
-      currentContainer.count_5 || 0,
-      currentContainer.count_10 || 0,
-      currentContainer.count_20 || 0
-    );
-  }
 }
 
 function startWithdrawPolling(cmdId, denom) {
@@ -1213,14 +1182,11 @@ function startWithdrawPolling(cmdId, denom) {
       console.warn('[Dispenser] Poll check error:', e);
     }
 
-    // Safety timeout: If polling exceeds 12 seconds
-    if (pollCount > 10) {
+    // Safety timeout: If polling exceeds 15 seconds
+    if (pollCount > 12) {
       stopWithdrawPolling();
-      if (activeWithdrawCmd && activeWithdrawCmd.status === 'running') {
-        completeWithdrawDirectly(cmdId, denom);
-      } else {
-        setDispenserButtonsBusy(false);
-      }
+      setDispenserButtonsBusy(false);
+      fetchContainerData();
     }
   }, 1200);
 }
@@ -1232,88 +1198,25 @@ function stopWithdrawPolling() {
   }
 }
 
-async function completeWithdrawDirectly(cmdId, denom) {
-  try {
-    await supabaseClient
-      .from('withdraw_commands')
-      .update({ status: 'completed' })
-      .eq('id', cmdId);
-    handleWithdrawCommandUpdate({ id: cmdId, denomination: denom, status: 'completed' });
-  } catch (e) {
-    console.warn('Auto-completion update error:', e);
-  }
-}
-
 function handleWithdrawCommandUpdate(command) {
   if (!command) return;
-  const { id, denomination, status, created_at, completed_at } = command;
+  const { id, denomination, status } = command;
   activeWithdrawCmd = command;
 
-  updateDispenserUIState(status, id, denomination, completed_at || created_at);
-
-  if (status === 'completed') {
+  if (status === 'running') {
+    setDispenserButtonsBusy(true, denomination);
+  } else if (status === 'completed') {
     stopWithdrawPolling();
-    showToast(`✅ ₱${denomination} coin successfully dispensed by Servo!`);
+    setDispenserButtonsBusy(false);
+    showToast(`✅ ₱${denomination} coins successfully dispensed by Servo (0° ➔ 180° ➔ 0°)!`);
     fetchContainerData();
     fetchLogs();
   } else if (status === 'failed') {
     stopWithdrawPolling();
+    setDispenserButtonsBusy(false);
     showToast(`❌ Dispense failed for ₱${denomination}. Check ESP32 hardware.`);
-    setDispenserButtonsBusy(false);
+    fetchContainerData();
   }
-}
-
-function updateDispenserUIState(status, id, denom, timestamp) {
-  if (dispenserLastCommandId && id) {
-    dispenserLastCommandId.textContent = `#CMD-${String(id).padStart(4, '0')}`;
-  }
-
-  if (dispenserLastTime && timestamp) {
-    const d = new Date(timestamp);
-    dispenserLastTime.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
-  if (dispenserResetTimer) {
-    clearTimeout(dispenserResetTimer);
-    dispenserResetTimer = null;
-  }
-
-  if (dispenserStatusBadge) {
-    dispenserStatusBadge.className = `dispenser-status-pill status-${status}`;
-  }
-
-  if (status === 'pending') {
-    if (dispenserStatusText) dispenserStatusText.textContent = `QUEUED: ₱${denom} (WAITING ESP32)`;
-    if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (READY)';
-  } else if (status === 'running') {
-    if (dispenserStatusText) dispenserStatusText.textContent = `DISPENSING ₱${denom} (SERVO ACTIVE)`;
-    if (dispenserServoAngle) dispenserServoAngle.textContent = '180° (DISPENSING COIN)';
-    setDispenserButtonsBusy(true, denom);
-  } else if (status === 'completed') {
-    if (dispenserStatusText) dispenserStatusText.textContent = `DISPENSED ₱${denom} // 180° ➔ 0° RESET`;
-    if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (RESET TO HOME)';
-    setDispenserButtonsBusy(false);
-
-    dispenserResetTimer = setTimeout(() => {
-      resetDispenserToIdle();
-    }, 3500);
-  } else if (status === 'failed') {
-    if (dispenserStatusText) dispenserStatusText.textContent = 'FAILED / TIMEOUT';
-    if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (HALTED)';
-    setDispenserButtonsBusy(false);
-  } else {
-    resetDispenserToIdle();
-  }
-}
-
-function resetDispenserToIdle() {
-  if (dispenserStatusBadge) {
-    dispenserStatusBadge.className = 'dispenser-status-pill status-idle';
-  }
-  if (dispenserStatusText) dispenserStatusText.textContent = 'STANDBY / READY';
-  if (dispenserServoAngle) dispenserServoAngle.textContent = '0° (HOME)';
-  setDispenserButtonsBusy(false);
-  activeWithdrawCmd = null;
 }
 
 // Fetch latest command on page boot
@@ -1327,15 +1230,8 @@ async function fetchLatestWithdrawCommand() {
       .limit(1)
       .maybeSingle();
 
-    if (!error && data) {
-      if (dispenserLastCommandId) dispenserLastCommandId.textContent = `#CMD-${String(data.id).padStart(4, '0')}`;
-      if (dispenserLastTime && data.created_at) {
-        const d = new Date(data.created_at);
-        dispenserLastTime.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      }
-      if (data.status === 'pending' || data.status === 'running') {
-        handleWithdrawCommandUpdate(data);
-      }
+    if (!error && data && (data.status === 'pending' || data.status === 'running')) {
+      handleWithdrawCommandUpdate(data);
     }
   } catch (e) {
     console.warn('Error fetching latest withdraw command:', e);
@@ -1343,7 +1239,7 @@ async function fetchLatestWithdrawCommand() {
 }
 
 // Global hooks
-window.requestCoinDispense = requestCoinDispense;
+window.quickWithdrawDenom = quickWithdrawDenom;
 
 // Run on page load
 window.addEventListener('DOMContentLoaded', initSupabase);

@@ -1637,300 +1637,106 @@ button, input, select, .coin-select-item {
 }
 
 /* ========================================================
-   AUTOMATED COIN DISPENSER (0° -> 180° -> 0° SERVO TELEMETRY)
+   INTEGRATED AUTOMATED COIN DISPENSER (0° -> 180° -> 0°)
    ======================================================== */
-.dispenser-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-medium);
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  position: relative;
-  overflow: hidden;
-}
-
-.dispenser-top-banner {
+.coin-servo-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+  margin-top: 2px;
+  margin-bottom: 4px;
 }
 
-.dispenser-title-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.dispenser-icon-pulse {
-  width: 40px;
-  height: 40px;
-  background: var(--accent-green-light);
-  border: 1px solid var(--accent-green-border);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent-green);
-  flex-shrink: 0;
-}
-
-.dispenser-title {
-  font-size: 0.98rem;
+.servo-gpio-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
   font-weight: 700;
-  color: var(--text-pure-dark);
+  color: var(--text-dim);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  padding: 2px 7px;
+  border-radius: 4px;
   letter-spacing: 0.3px;
 }
 
-.dispenser-sub {
-  font-size: 0.72rem;
-  color: var(--text-muted);
+.servo-angle-badge {
   font-family: var(--font-mono);
-  font-weight: 500;
-}
-
-/* Status Pill */
-.dispenser-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  border: 1px solid transparent;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  background: var(--accent-green-light);
+  border: 1px solid var(--accent-green-border);
+  padding: 2px 7px;
+  border-radius: 4px;
   transition: all 0.3s ease;
 }
 
-.dispenser-status-pill .pulse-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.dispenser-status-pill.status-idle {
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-  border-color: var(--border-medium);
-}
-.dispenser-status-pill.status-idle .pulse-dot {
-  background: var(--text-dim);
-}
-
-.dispenser-status-pill.status-pending {
-  background: #fffbeb;
-  color: #b45309;
-  border-color: #fde68a;
-}
-.dispenser-status-pill.status-pending .pulse-dot {
-  background: #f59e0b;
-  animation: statusBlink 1s infinite alternate;
-}
-
-.dispenser-status-pill.status-running {
+.servo-angle-badge.active-180 {
   background: #eff6ff;
-  color: #1d4ed8;
+  color: #2563eb;
   border-color: #bfdbfe;
-}
-.dispenser-status-pill.status-running .pulse-dot {
-  background: #2563eb;
-  animation: statusPulse 1.2s infinite ease-in-out;
+  animation: pulseAngle 0.8s infinite alternate;
 }
 
-.dispenser-status-pill.status-completed {
-  background: var(--accent-green-light);
-  color: var(--accent-green);
-  border-color: var(--accent-green-border);
-}
-.dispenser-status-pill.status-completed .pulse-dot {
-  background: var(--accent-green);
+@keyframes pulseAngle {
+  0% { transform: scale(0.97); }
+  100% { transform: scale(1.04); }
 }
 
-.dispenser-status-pill.status-failed {
-  background: var(--danger-bg);
-  color: var(--danger);
-  border-color: var(--danger-border);
-}
-.dispenser-status-pill.status-failed .pulse-dot {
-  background: var(--danger);
-}
-
-/* 4 Coins Automated Dispense Grid */
-.dispenser-coins-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.dispenser-coin-item {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-medium);
-  border-radius: 8px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  transition: all 0.25s ease;
-  position: relative;
-}
-
-.dispenser-coin-item:hover:not(.empty-tube) {
-  border-color: var(--text-main);
-  background: var(--bg-card);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.dispenser-coin-item.dispensing-active {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-
-.dispenser-coin-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.dispenser-denom-badge {
-  font-family: var(--font-mono);
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--text-pure-dark);
-}
-
-.dispenser-servo-label {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--text-dim);
-  background: var(--bg-card);
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle);
-}
-
-.dispenser-coin-stock {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.76rem;
-  padding-bottom: 4px;
-}
-
-.stock-label {
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-}
-
-.stock-val {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--text-pure-dark);
-}
-
-.dispenser-coin-item.empty-tube {
-  opacity: 0.65;
-  background: #f8fafc;
-}
-.dispenser-coin-item.empty-tube .stock-val {
-  color: var(--danger);
-}
-
-/* Button to Actuate Servo */
-.btn-dispense-actuate {
+/* Enhanced Denomination Card Withdraw Button */
+.btn-quick-withdraw {
+  width: 100%;
+  margin-top: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 11px 16px;
-  font-size: 0.84rem;
+  gap: 7px;
+  padding: 10px 14px;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  background: var(--text-pure-dark);
-  color: #ffffff;
-  border: none;
+  letter-spacing: 0.4px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-secondary);
+  color: var(--text-dim);
 }
 
-.btn-dispense-actuate:hover:not(:disabled) {
+.btn-quick-withdraw.ready {
+  background: var(--text-pure-dark);
+  color: #ffffff;
+  border-color: var(--text-pure-dark);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+
+.btn-quick-withdraw.ready:hover:not(:disabled) {
   background: #000000;
+  border-color: #000000;
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
 }
 
-.btn-dispense-actuate:active:not(:disabled) {
+.btn-quick-withdraw.ready:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.btn-dispense-actuate:disabled {
-  background: var(--border-medium);
+.btn-quick-withdraw.locked {
+  background: var(--bg-secondary);
   color: var(--text-dim);
+  border-color: var(--border-medium);
   cursor: not-allowed;
-  box-shadow: none;
+  opacity: 0.75;
 }
 
-.btn-dispense-actuate.active-dispensing {
-  background: #2563eb;
-  color: #ffffff;
-}
-
-/* Dispenser Footer Telemetry */
-.dispenser-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.dispenser-meta {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.dispenser-meta .meta-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dispenser-meta .meta-lbl {
-  font-size: 0.7rem;
-  font-family: var(--font-mono);
-  color: var(--text-dim);
-  font-weight: 600;
-}
-
-.dispenser-meta .meta-val {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-@keyframes statusBlink {
-  0% { opacity: 0.3; transform: scale(0.9); }
-  100% { opacity: 1; transform: scale(1.1); }
-}
-
-@keyframes statusPulse {
-  0% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
-  70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
-  100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+.btn-quick-withdraw.dispensing {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #1d4ed8 !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25) !important;
+  cursor: wait !important;
 }
 
 .spin-icon {
@@ -1941,16 +1747,6 @@ button, input, select, .coin-select-item {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-@media screen and (max-width: 860px) {
-  .dispenser-coins-grid {
-    grid-template-columns: 1fr;
-  }
-  .dispenser-footer {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }
 
 

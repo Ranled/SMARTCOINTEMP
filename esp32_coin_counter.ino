@@ -360,13 +360,7 @@ void runWithdrawSequence() {
       Serial.printf("[Dispenser] Dispense cycle complete for ₱%d (Cmd #%ld)\n",
                     activeWithdrawDenom, activeWithdrawCommandId);
 
-      // 1. Deduct coin from local memory counters
-      deductCoin(activeWithdrawDenom);
-
-      // 2. Push updated container counts and audit log to Supabase
-      pushWithdrawalToSupabase(activeWithdrawDenom);
-
-      // 3. Mark command 'completed' in Supabase with retries
+      // 1. Mark command 'completed' in Supabase with retries
       bool updated = false;
       for (int attempt = 1; attempt <= 3 && !updated; attempt++) {
         if (WiFi.status() != WL_CONNECTED) {
@@ -384,6 +378,9 @@ void runWithdrawSequence() {
       } else {
         Serial.println("[Dispenser] Warning: Failed to update Supabase status after 3 attempts.");
       }
+
+      // 2. Fetch the latest coin_container state from Supabase to stay 100% in sync
+      syncWithSupabase(false);
 
       lcd.clear();
       lcd.setCursor(0, 0);

@@ -81,134 +81,12 @@
         </div>
       </section>
 
-      <!-- Automated Coin Dispenser Section (Servo Actuation 0° -> 180° -> 0°) -->
-      <section class="dispenser-card" id="dispenserCard">
-        <div class="dispenser-top-banner">
-          <div class="dispenser-title-group">
-            <div class="dispenser-icon-pulse">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M16 12l-4 4-4-4"></path>
-                <line x1="12" y1="8" x2="12" y2="16"></line>
-              </svg>
-            </div>
-            <div>
-              <h2 class="dispenser-title">AUTOMATED COIN DISPENSER // SERVO WITHDRAWAL</h2>
-              <p class="dispenser-sub">DIRECT HARDWARE ACTUATION (0° ➔ 180° ➔ 0°) // REALTIME TELEMETRY</p>
-            </div>
-          </div>
-          <div class="dispenser-badge-group">
-            <span class="dispenser-status-pill status-idle" id="dispenserStatusBadge">
-              <span class="pulse-dot"></span>
-              <span id="dispenserStatusText">STANDBY / READY</span>
-            </span>
-          </div>
-        </div>
-
-        <!-- 4 Coin Automated Dispense Grid -->
-        <div class="dispenser-coins-grid">
-          <!-- ₱1 Coin Dispenser -->
-          <div class="dispenser-coin-item" id="dispenseItem1">
-            <div class="dispenser-coin-header">
-              <span class="dispenser-denom-badge">₱1</span>
-              <span class="dispenser-servo-label">SERVO 1 (GPIO 18)</span>
-            </div>
-            <div class="dispenser-coin-stock">
-              <span class="stock-label">CONTAINER:</span>
-              <strong class="stock-val" id="dispenserStock1">0 COINS</strong>
-            </div>
-            <button class="btn-dispense-actuate" id="dispenseBtn1" onclick="requestCoinDispense(1)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-              </svg>
-              <span>WITHDRAW ₱1</span>
-            </button>
-          </div>
-
-          <!-- ₱5 Coin Dispenser -->
-          <div class="dispenser-coin-item" id="dispenseItem5">
-            <div class="dispenser-coin-header">
-              <span class="dispenser-denom-badge">₱5</span>
-              <span class="dispenser-servo-label">SERVO 2 (GPIO 19)</span>
-            </div>
-            <div class="dispenser-coin-stock">
-              <span class="stock-label">CONTAINER:</span>
-              <strong class="stock-val" id="dispenserStock5">0 COINS</strong>
-            </div>
-            <button class="btn-dispense-actuate" id="dispenseBtn5" onclick="requestCoinDispense(5)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-              </svg>
-              <span>WITHDRAW ₱5</span>
-            </button>
-          </div>
-
-          <!-- ₱10 Coin Dispenser -->
-          <div class="dispenser-coin-item" id="dispenseItem10">
-            <div class="dispenser-coin-header">
-              <span class="dispenser-denom-badge">₱10</span>
-              <span class="dispenser-servo-label">SERVO 3 (GPIO 23)</span>
-            </div>
-            <div class="dispenser-coin-stock">
-              <span class="stock-label">CONTAINER:</span>
-              <strong class="stock-val" id="dispenserStock10">0 COINS</strong>
-            </div>
-            <button class="btn-dispense-actuate" id="dispenseBtn10" onclick="requestCoinDispense(10)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-              </svg>
-              <span>WITHDRAW ₱10</span>
-            </button>
-          </div>
-
-          <!-- ₱20 Coin Dispenser -->
-          <div class="dispenser-coin-item" id="dispenseItem20">
-            <div class="dispenser-coin-header">
-              <span class="dispenser-denom-badge">₱20</span>
-              <span class="dispenser-servo-label">SERVO 4 (GPIO 13)</span>
-            </div>
-            <div class="dispenser-coin-stock">
-              <span class="stock-label">CONTAINER:</span>
-              <strong class="stock-val" id="dispenserStock20">0 COINS</strong>
-            </div>
-            <button class="btn-dispense-actuate" id="dispenseBtn20" onclick="requestCoinDispense(20)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-              </svg>
-              <span>WITHDRAW ₱20</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Dispenser Telemetry Footer -->
-        <div class="dispenser-footer">
-          <div class="dispenser-meta">
-            <div class="meta-item">
-              <span class="meta-lbl">ACTIVE CMD:</span>
-              <span class="meta-val highlight-mono" id="dispenserLastCommandId">NONE</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-lbl">LAST DISPENSED:</span>
-              <span class="meta-val" id="dispenserLastTime">--</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-lbl">SERVO ANGLE:</span>
-              <span class="meta-val highlight-green" id="dispenserServoAngle">0° (HOME)</span>
-            </div>
-            <div class="meta-item">
-              <span class="meta-lbl">HARDWARE ACTION:</span>
-              <span class="meta-val highlight-mono">0° ➔ 180° (Drop Coin) ➔ 0° (Reset)</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- Section Title for Coins -->
       <div class="section-divider-title">
         <span>DENOMINATION BREAKDOWN (₱100 MINIMUM TO WITHDRAW EACH)</span>
       </div>
 
-      <!-- Denomination Breakdown Grid -->
+      <!-- Denomination Breakdown Grid with Integrated Servo Dispenser -->
       <section class="denominations-grid">
         <!-- ₱1 Coin Card -->
         <div class="coin-card" id="card-p1">
@@ -230,8 +108,12 @@
             <span class="threshold-label">Goal to Withdraw:</span>
             <span class="threshold-val" id="progress1">₱0 / ₱100</span>
           </div>
+          <div class="coin-servo-meta">
+            <span class="servo-gpio-badge">SERVO 1 (GPIO 18)</span>
+            <span class="servo-angle-badge" id="servoAngleBadge1">0° HOME</span>
+          </div>
           <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw1" disabled onclick="quickWithdrawDenom(1)">
-            WITHDRAW ₱100 (100 PCS)
+            🔒 LOCKED (&lt; ₱100)
           </button>
         </div>
 
@@ -255,8 +137,12 @@
             <span class="threshold-label">Goal to Withdraw:</span>
             <span class="threshold-val" id="progress5">₱0 / ₱100</span>
           </div>
+          <div class="coin-servo-meta">
+            <span class="servo-gpio-badge">SERVO 2 (GPIO 19)</span>
+            <span class="servo-angle-badge" id="servoAngleBadge5">0° HOME</span>
+          </div>
           <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw5" disabled onclick="quickWithdrawDenom(5)">
-            WITHDRAW ₱100 (20 PCS)
+            🔒 LOCKED (&lt; ₱100)
           </button>
         </div>
 
@@ -280,8 +166,12 @@
             <span class="threshold-label">Goal to Withdraw:</span>
             <span class="threshold-val" id="progress10">₱0 / ₱100</span>
           </div>
+          <div class="coin-servo-meta">
+            <span class="servo-gpio-badge">SERVO 3 (GPIO 23)</span>
+            <span class="servo-angle-badge" id="servoAngleBadge10">0° HOME</span>
+          </div>
           <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw10" disabled onclick="quickWithdrawDenom(10)">
-            WITHDRAW ₱100 (10 PCS)
+            🔒 LOCKED (&lt; ₱100)
           </button>
         </div>
 
@@ -305,8 +195,12 @@
             <span class="threshold-label">Goal to Withdraw:</span>
             <span class="threshold-val" id="progress20">₱0 / ₱100</span>
           </div>
+          <div class="coin-servo-meta">
+            <span class="servo-gpio-badge">SERVO 4 (GPIO 13)</span>
+            <span class="servo-angle-badge" id="servoAngleBadge20">0° HOME</span>
+          </div>
           <button class="btn btn-outline btn-sm btn-quick-withdraw" id="quickWithdraw20" disabled onclick="quickWithdrawDenom(20)">
-            WITHDRAW ₱100 (5 PCS)
+            🔒 LOCKED (&lt; ₱100)
           </button>
         </div>
       </section>
