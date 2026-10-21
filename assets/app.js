@@ -161,12 +161,28 @@
     function renderPending() {
         if ($('pending-coins')) $('pending-coins').textContent = `₱${pendingCoins}`;
         if ($('pending-time')) $('pending-time').textContent = `${pendingMinutes} minutes`;
-        if ($('connect')) $('connect').disabled = !pendingMinutes;
+        if ($('connect')) {
+            $('connect').disabled = false;
+            $('connect').textContent = pendingMinutes > 0
+                ? `START SESSION (+${pendingMinutes} MINS)`
+                : 'START SESSION';
+        }
     }
 
     // Commit and credit session
-    function commitPaymentSession() {
-        if (!pendingMinutes) return;
+    async function commitPaymentSession() {
+        if (!pendingMinutes) {
+            await pollLatestCoinLogs();
+        }
+        if (!pendingMinutes) {
+            const alertEl = $('coin-alert');
+            if (alertEl) {
+                alertEl.textContent = '⚠️ Please insert a coin into the slot first (₱1 = 5 mins, ₱5 = 30 mins, ₱10 = 1 hr, ₱20 = 3 hrs).';
+                alertEl.style.display = 'block';
+            }
+            announce('Please insert a coin into the slot first to start your session.', true);
+            return;
+        }
         stopSlotCountdown();
 
         state.coins += pendingCoins;
@@ -182,8 +198,18 @@
         renderPending();
     }
 
+    // Track processed log IDs so Realtime + Polling never double-count a coin
+    let lastProcessedLogId = null;
+
     // Realtime coin reception handler from Supabase
     function handleLiveCoinDrop(log) {
+        if (log && log.id) {
+            if (lastProcessedLogId !== null && Number(log.id) <= lastProcessedLogId) {
+                return;
+            }
+            lastProcessedLogId = Number(log.id);
+        }
+
         const denom = Number(log.denomination || log.amount);
         if (!denom) return;
 
@@ -196,9 +222,6 @@
         // If coin dialog isn't open, open it automatically so user sees live payment
         const coinDialog = $('coin-dialog');
         if (coinDialog && !coinDialog.open) {
-            pendingCoins = 0;
-            pendingMinutes = 0;
-            renderPending();
             showDialog('coin-dialog');
             startSlotCountdown();
         }
@@ -231,8 +254,40 @@
         console.log(`[PisoWiFi Realtime] Received ₱${denom} coin. Total pending: ₱${pendingCoins} (${pendingMinutes} mins)`);
     }
 
-    // Initialize Supabase Realtime Listener
+    // Fast polling fallback in case WebSocket Realtime is delayed or blocked
     let supabaseClient = null;
+    async function pollLatestCoinLogs() {
+        if (!supabaseClient) return;
+        try {
+            const { data, error } = await supabaseClient
+                .from('coin_logs')
+                .select('*')
+                .order('id', { ascending: false })
+                .limit(5);
+
+            if (error || !data || data.length === 0) return;
+
+            if (lastProcessedLogId === null) {
+                lastProcessedLogId = Number(data[0].id);
+                return;
+            }
+
+            // Process any new DEPOSIT logs in chronological order
+            const newDeposits = data
+                .filter(row => Number(row.id) > lastProcessedLogId && row.event_type === 'DEPOSIT')
+                .reverse();
+
+            for (const dep of newDeposits) {
+                handleLiveCoinDrop(dep);
+            }
+
+            if (Number(data[0].id) > lastProcessedLogId) {
+                lastProcessedLogId = Number(data[0].id);
+            }
+        } catch (_) {}
+    }
+
+    // Initialize Supabase Realtime Listener + 1.5s Polling
     function initSupabaseRealtime() {
         try {
             let savedUrl = localStorage.getItem('SMARTCOIN_SUPABASE_URL');
@@ -248,6 +303,10 @@
             if (window.supabase && savedUrl && savedKey) {
                 supabaseClient = window.supabase.createClient(savedUrl, savedKey);
 
+                // Seed latest log ID on boot and start 1.5s fast poll fallback
+                pollLatestCoinLogs();
+                setInterval(pollLatestCoinLogs, 1500);
+
                 // Listen to live DEPOSIT logs inserted by ESP32
                 supabaseClient
                     .channel('portal-coin-listener')
@@ -258,7 +317,7 @@
                     })
                     .subscribe();
 
-                console.log('[PisoWiFi] Connected to Supabase Realtime for live coin detection');
+                console.log('[PisoWiFi] Connected to Supabase Realtime + 1.5s polling for live coin detection');
             }
         } catch (err) {
             console.warn('[PisoWiFi] Supabase Realtime init error:', err);
@@ -267,14 +326,14 @@
 
     // Event Listeners
     $('insert-coin')?.addEventListener('click', () => {
-        pendingCoins = 0;
-        pendingMinutes = 0;
-        const alertEl = $('coin-alert');
-        if (alertEl) alertEl.style.display = 'none';
-
+        if (pendingMinutes === 0) {
+            const alertEl = $('coin-alert');
+            if (alertEl) alertEl.style.display = 'none';
+        }
         renderPending();
         startSlotCountdown();
         showDialog('coin-dialog');
+        pollLatestCoinLogs();
     });
 
     $('wifi-rates')?.addEventListener('click', () => showDialog('rates-dialog'));
@@ -294,32 +353,10 @@
         });
     });
 
-    // Manual/Demo coin buttons fallback
-    document.querySelectorAll('[data-pesos]').forEach(button => {
-        button.addEventListener('click', () => {
-            const rate = config.rates.find(item => item.pesos === Number(button.dataset.pesos));
-            if (!rate) return;
-
-            playCoinChime();
-            pendingCoins += rate.pesos;
-            pendingMinutes += rate.minutes;
-            slotCountdown = 60;
-            updateSlotTimerDisplay();
-            renderPending();
-
-            const alertEl = $('coin-alert');
-            if (alertEl) {
-                alertEl.textContent = `🪙 ₱${rate.pesos} Coin Added! (+${rate.minutes} minutes)`;
-                alertEl.style.display = 'block';
-            }
-        });
-    });
-
     // Connect / Start Session Button
     $('connect')?.addEventListener('click', () => {
         commitPaymentSession();
     });
-
     // Pause / Resume Session
     $('pause')?.addEventListener('click', () => {
         const seconds = secondsLeft();

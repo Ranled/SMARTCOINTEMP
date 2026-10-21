@@ -79,7 +79,7 @@ header('Content-Type: text/html; charset=utf-8');
     </div>
     <div id="coin-alert" class="coin-notification-banner"></div>
     <div class="coin-summary" role="status" aria-live="polite"><span>Coins inserted: <strong id="pending-coins">₱0</strong></span><span>Time to add: <strong id="pending-time">0 minutes</strong></span></div>
-    <button id="connect" class="button primary dialog-action" type="button" disabled>START SESSION</button>
+    <button id="connect" class="button primary dialog-action" type="button">START SESSION</button>
     <button type="button" class="text-button cancel" data-close>Cancel</button>
 </dialog>
 

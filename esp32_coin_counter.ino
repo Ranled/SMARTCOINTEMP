@@ -364,18 +364,34 @@ void cloudSyncTask(void *pvParameters) {
   client.setInsecure(); // Fast HTTPS without CA bundle overhead
   client.setTimeout(3000);
 
-  unsigned long lastWifiCheck = 0;
+  bool wasConnected = (WiFi.status() == WL_CONNECTED);
+  unsigned long lastWifiCheck = millis();
   Serial.println("[CloudSyncTask] Core 0 Background Network Task Active");
 
   for (;;) {
-    // 1. Non-blocking background WiFi reconnect on Core 0
-    if (WiFi.status() != WL_CONNECTED) {
+    bool isConnected = (WiFi.status() == WL_CONNECTED);
+
+    // Detect background WiFi connection recovery
+    if (isConnected && !wasConnected) {
+      wasConnected = true;
+      Serial.println("\n[WiFi] Connected in background! IP: " + WiFi.localIP().toString());
+      syncWithSupabase(client, true);
+    } else if (!isConnected && wasConnected) {
+      wasConnected = false;
+      Serial.println("[WiFi] Connection lost. Waiting for auto-reconnect...");
+      lastWifiCheck = millis();
+    }
+
+    // 1. Non-blocking background WiFi retry (only every 20s so we never abort an active handshake)
+    if (!isConnected) {
       unsigned long now = millis();
-      if (now - lastWifiCheck >= 5000) {
+      if (now - lastWifiCheck >= 20000) {
         lastWifiCheck = now;
-        WiFi.reconnect();
+        Serial.printf("[WiFi] Retrying connection to '%s'...\n", WIFI_SSID);
+        WiFi.disconnect();
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
       }
-      vTaskDelay(pdMS_TO_TICKS(100));
+      vTaskDelay(pdMS_TO_TICKS(200));
       continue;
     }
 
@@ -536,15 +552,40 @@ void syncWithSupabase(WiFiClientSecure &client, bool onBoot) {
 // 15. INITIAL WIFI CONNECTION HELPER (BOOT ONLY)
 // ========================================================
 void connectWiFiInitial() {
-  Serial.printf("Connecting to WiFi '%s'...", WIFI_SSID);
+  WiFi.disconnect(true);
+  delay(100);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false); // Improves stability with FTTx / Fiberhome routers
   WiFi.setAutoReconnect(true);
-  WiFi.persistent(false);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  String targetSsid = String(WIFI_SSID);
+
+  // Quick scan to verify 2.4GHz visibility & auto-match case if needed
+  Serial.println("[WiFi] Scanning 2.4GHz networks...");
+  int n = WiFi.scanNetworks();
+  bool foundAp = false;
+  for (int i = 0; i < n; i++) {
+    String scanned = WiFi.SSID(i);
+    Serial.printf("  -> Found: '%s' (RSSI: %d dBm, Ch: %d)\n",
+                  scanned.c_str(), WiFi.RSSI(i), WiFi.channel(i));
+    if (scanned.equalsIgnoreCase(targetSsid)) {
+      targetSsid = scanned; // Use exact casing broadcast by router
+      foundAp = true;
+    }
+  }
+  WiFi.scanDelete();
+
+  if (!foundAp) {
+    Serial.printf("[!] Notice: '%s' was not seen in scan (check if 2.4GHz is enabled or in range).\n", WIFI_SSID);
+  }
+
+  Serial.printf("Connecting to WiFi '%s'...", targetSsid.c_str());
+  WiFi.begin(targetSsid.c_str(), WIFI_PASSWORD);
 
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 15) {
-    delay(250);
+  // Wait up to 12 seconds (40 * 300ms) for WPA2 + DHCP lease on FTTx routers
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
+    delay(300);
     Serial.print(".");
     attempts++;
   }
@@ -552,7 +593,7 @@ void connectWiFiInitial() {
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\n[WiFi] Connected! IP: " + WiFi.localIP().toString());
   } else {
-    Serial.println("\n[WiFi] Offline at boot. Background task will auto-connect when available.");
+    Serial.printf("\n[WiFi] Not connected yet (status=%d). Background task will keep trying.\n", WiFi.status());
   }
 }
 
