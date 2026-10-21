@@ -40,21 +40,20 @@ h1[data-state="paused"]{color:#f1ca79}
 .timer{font-size:38px;font-variant-numeric:tabular-nums;line-height:1.2;letter-spacing:3px;margin:7px 0 2px}
 footer{background:var(--gray);padding:27px 16px;text-align:center;font-size:14px;line-height:1.5}
 footer p{margin:0}footer span{color:#74dfeb}footer p+ p{font-size:12px;color:#e0e7ea}
-dialog{width:min(440px,calc(100% - 32px));max-height:calc(100svh - 32px);overflow-y:auto;border:1px solid #87979d;border-radius:24px;background:#354349;color:var(--white);padding:28px;box-shadow:0 20px 80px #0007}
-dialog::backdrop{background:#101b21bc;backdrop-filter:blur(5px)}
+dialog{width:min(460px,calc(100% - 28px));max-height:calc(100svh - 28px);overflow-y:auto;border:2px solid #22c55e88;border-radius:24px;background:#263339;color:var(--white);padding:24px;box-shadow:0 24px 90px #000b}
+dialog::backdrop{background:#091115d9;backdrop-filter:blur(6px)}
 .dialog-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .close{border:0;background:transparent;color:#cbd6db;font-size:30px;line-height:1;padding:0 0 0 15px}
-h2{margin:12px 0 8px;font-size:32px;letter-spacing:-.7px}
+h2{margin:10px 0 8px;font-size:28px;letter-spacing:-.7px}
 .dialog-copy{font-size:14px;color:#d1dce0;line-height:1.6;margin:0 0 24px}
 .coin-options{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.coin{border:1px solid #71878e;border-radius:16px;color:white;background:#475a62;padding:15px 3px;transition:background .15s}
-.coin:hover{background:#167e8c;border-color:#6adeeb}
-.coin span{display:block;font-size:25px;font-weight:700}
-.coin small{display:block;font-size:10px;margin-top:5px;color:#d8e3e6}
-.coin-summary{margin-top:22px;border-top:1px solid #ffffff20;padding:16px 0;display:grid;gap:10px;font-size:13px}
-.coin-summary>span{display:flex;justify-content:space-between;gap:10px}
-.coin-summary strong{color:#a7edf4}
-.dialog-action{font-size:15px;letter-spacing:2px;min-height:51px;margin-top:12px;padding:13px 16px}
+.coin{border:1px solid #71878e;border-radius:14px;color:white;background:#36474f;padding:10px 3px;transition:background .15s}
+.coin span{display:block;font-size:22px;font-weight:800;color:#74dfeb}
+.coin small{display:block;font-size:10px;margin-top:3px;color:#e2ecee;font-weight:700}
+.coin-summary{margin-top:14px;background:#1b262b;border:1px solid #ffffff24;border-radius:14px;padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;text-align:center}
+.coin-summary>span{display:flex;flex-direction:column;gap:4px;color:#b8c7cc;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.coin-summary strong{color:#4ade80;font-size:22px;font-weight:900}
+.dialog-action{font-size:16px;letter-spacing:2px;min-height:54px;margin-top:14px;padding:13px 16px}
 .small-note{font-size:11px;line-height:1.6;color:#bccbd0;text-align:center;margin:17px 0 0}
 .cancel{display:block;margin:8px auto 0}
 table{width:100%;border-collapse:collapse;margin:8px 0 24px;font-size:16px;text-align:left}
@@ -64,7 +63,7 @@ td{padding:14px 0;border-top:1px solid #ffffff20}td:first-child{font-size:23px;f
 .noscript{color:#ffe0a8;padding:15px}
 [hidden]{display:none!important}
 @media(min-width:700px){.main{min-height:900px;padding-top:50px}.demo-note{margin-top:70px}}
-@media(max-width:480px){.main{padding:28px 20px 22px;min-height:580px}h1{letter-spacing:-1px;margin:5px 0 11px}.device{font-size:11px}.balance{font-size:13px}.controls{margin-top:26px;width:92%}.button{min-height:54px;font-size:22px;letter-spacing:3px}.secondary{margin-top:13px}.voucher-form{min-height:51px;margin-top:12px}.voucher-form input{padding:9px 10px;font-size:17px}.voucher-form button{padding:9px 15px;font-size:18px}.network-label{top:12px;left:12px;font-size:10px;padding:6px 10px}.network-label img{width:15px;height:15px}.demo-note{margin-top:32px}footer{padding:22px 12px;font-size:12px}.dialog-action{min-height:51px;font-size:14px;letter-spacing:1.5px}dialog{padding:22px}.coin-options{gap:6px}.coin span{font-size:23px}.coin small{font-size:9px}}
+@media(max-width:480px){.main{padding:28px 20px 22px;min-height:580px}h1{letter-spacing:-1px;margin:5px 0 11px}.device{font-size:11px}.balance{font-size:13px}.controls{margin-top:26px;width:92%}.button{min-height:54px;font-size:22px;letter-spacing:3px}.secondary{margin-top:13px}.voucher-form{min-height:51px;margin-top:12px}.voucher-form input{padding:9px 10px;font-size:17px}.voucher-form button{padding:9px 15px;font-size:18px}.network-label{top:12px;left:12px;font-size:10px;padding:6px 10px}.network-label img{width:15px;height:15px}.demo-note{margin-top:32px}footer{padding:22px 12px;font-size:12px}.dialog-action{min-height:51px;font-size:14px;letter-spacing:1.5px}dialog{padding:20px}.coin-options{gap:6px}.coin span{font-size:20px}.coin small{font-size:9px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 
 /* Admin Access Button & Dialog */
@@ -73,13 +72,22 @@ td{padding:14px 0;border-top:1px solid #ffffff20}td:first-child{font-size:23px;f
 .admin-top-btn svg{display:inline-block;vertical-align:middle}
 @media(max-width:480px){.admin-top-btn{top:12px;right:12px;font-size:10px;padding:6px 10px}}
 
-/* Realtime Coin Slot Status Banner */
-.slot-status-box{display:flex;align-items:center;gap:12px;background:#182e35;border:1px solid #13a3b5;border-radius:14px;padding:12px 16px;margin:0 0 16px;text-align:left}
-.slot-pulse-dot{width:12px;height:12px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e;animation:pulse-slot 1.2s infinite;flex-shrink:0}
-@keyframes pulse-slot{0%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(34,197,94,0.7)}70%{transform:scale(1.15);box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{transform:scale(0.95);box-shadow:0 0 0 0 rgba(34,197,94,0)}}
-.slot-status-text strong{display:block;font-size:13px;color:#74dfeb;letter-spacing:1px}
-.slot-status-text p{margin:2px 0 0;font-size:11px;color:#c6d0d3;line-height:1.4}
-.slot-countdown-row{display:flex;justify-content:space-between;align-items:center;background:#253338;border-radius:10px;padding:8px 14px;margin-bottom:16px;font-size:12px;color:#d1dce0}
-.slot-countdown-row strong{font-family:monospace;font-size:16px;color:#f1ca79}
-.coin-notification-banner{display:none;background:#064e3b;border:1px solid #10b981;border-radius:10px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#a7f3d0;font-weight:700;animation:coin-flash 0.5s ease}
-@keyframes coin-flash{0%{transform:scale(0.97);filter:brightness(1.5)}100%{transform:scale(1);filter:brightness(1)}}
+/* MAJOR INSERT COIN CALL-TO-ACTION HERO SIGN */
+.insert-coin-hero{position:relative;background:linear-gradient(145deg,#0f292f 0%,#133b43 100%);border:2.5px solid #22c55e;border-radius:18px;padding:18px 16px 14px;margin:10px 0 14px;text-align:center;box-shadow:0 0 28px rgba(34,197,94,0.35),inset 0 0 20px rgba(34,197,94,0.12);animation:hero-border-pulse 1.4s infinite alternate}
+@keyframes hero-border-pulse{0%{border-color:#22c55e;box-shadow:0 0 16px rgba(34,197,94,0.3),inset 0 0 12px rgba(34,197,94,0.1)}100%{border-color:#facc15;box-shadow:0 0 32px rgba(250,204,21,0.55),inset 0 0 22px rgba(250,204,21,0.18)}}
+.coin-drop-stage{position:relative;width:74px;height:74px;margin:0 auto 8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.animated-coin{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 32% 32%,#fef08a,#facc15 55%,#ca8a04);border:3px solid #fef9c3;color:#713f12;font-weight:900;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(250,204,21,0.65);animation:coin-drop-loop 1.25s infinite ease-in-out;z-index:2}
+@keyframes coin-drop-loop{0%{transform:translateY(-22px) scale(0.95);opacity:0.4}50%{transform:translateY(4px) scale(1.05);opacity:1}85%{transform:translateY(14px) scale(0.9);opacity:0.9}100%{transform:translateY(18px) scale(0.75);opacity:0}}
+.coin-slot-mouth{width:64px;height:10px;border-radius:6px;background:#091316;border:2px solid #22c55e;box-shadow:0 0 12px #22c55e;margin-top:4px;z-index:1}
+.hero-insert-badge{display:inline-flex;align-items:center;gap:8px;background:#064e3b;border:1px solid #34d399;color:#a7f3d0;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:1.2px;margin-bottom:6px}
+.slot-pulse-dot{width:10px;height:10px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e;animation:pulse-slot 1s infinite;flex-shrink:0}
+@keyframes pulse-slot{0%{transform:scale(0.9);box-shadow:0 0 0 0 rgba(34,197,94,0.8)}70%{transform:scale(1.25);box-shadow:0 0 0 9px rgba(34,197,94,0)}100%{transform:scale(0.9);box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.hero-insert-title{margin:2px 0 4px;font-size:clamp(22px,5.5vw,30px);font-weight:900;letter-spacing:1px;color:#fef08a;text-shadow:0 2px 12px rgba(250,204,21,0.5);animation:title-blink 0.9s infinite alternate}
+@keyframes title-blink{0%{transform:scale(1);color:#fef08a}100%{transform:scale(1.04);color:#4ade80}}
+.hero-insert-sub{margin:0 0 10px;font-size:13px;color:#e2f1f4;font-weight:600}
+.slot-countdown-row{display:flex;justify-content:space-between;align-items:center;background:#0d1f24;border:1px solid #ffffff1f;border-radius:10px;padding:7px 12px;font-size:12px;color:#d1dce0}
+.slot-countdown-row strong{font-family:monospace;font-size:18px;font-weight:900;color:#facc15}
+.slot-progress-track{width:100%;height:6px;background:#091519;border-radius:99px;overflow:hidden;margin-top:8px}
+.slot-progress-fill{height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#facc15);transition:width 0.95s linear}
+.coin-notification-banner{display:none;background:#065f46;border:2px solid #34d399;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:#ecfdf5;font-weight:800;text-align:center;box-shadow:0 0 18px rgba(16,185,129,0.45);animation:coin-flash 0.5s ease}
+@keyframes coin-flash{0%{transform:scale(0.94);filter:brightness(1.6)}100%{transform:scale(1);filter:brightness(1)}}

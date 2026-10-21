@@ -167,23 +167,35 @@
         } catch (_) {}
     }
 
-    // Short activation beep when user clicks INSERT COIN
+    // Short activation beep + voice prompt when user clicks INSERT COIN
     function playSlotReadySound() {
         try {
             const ctx = getAudioContext();
-            if (!ctx) return;
-            const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(659.25, now); // E5
-            osc.frequency.setValueAtTime(880.00, now + 0.07); // A5
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now);
-            osc.stop(now + 0.22);
+            if (ctx) {
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(659.25, now); // E5
+                osc.frequency.setValueAtTime(880.00, now + 0.08); // A5
+                osc.frequency.setValueAtTime(1174.66, now + 0.16); // D6
+                gain.gain.setValueAtTime(0.45, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.32);
+            }
+        } catch (_) {}
+
+        try {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance('Please insert your coin now');
+                utter.rate = 1.05;
+                utter.volume = 1.0;
+                window.speechSynthesis.speak(utter);
+            }
         } catch (_) {}
     }
 
@@ -213,6 +225,8 @@
     function updateSlotTimerDisplay() {
         const timerEl = $('slot-timer');
         if (timerEl) timerEl.textContent = `${slotCountdown}s`;
+        const fillEl = $('slot-progress-fill');
+        if (fillEl) fillEl.style.width = `${Math.max(0, Math.min(100, (slotCountdown / 60) * 100))}%`;
     }
 
     function startSlotCountdown() {
@@ -319,6 +333,9 @@
         pendingMinutes += mins;
         renderPending();
 
+        if ($('coin-title')) $('coin-title').textContent = `🪙 +₱${denom} ACCEPTED!`;
+        if ($('slot-hero-badge-text')) $('slot-hero-badge-text').textContent = 'COIN RECEIVED! DROP MORE OR START SESSION';
+
         // Reset countdown timer back to 60s for subsequent coins
         slotCountdown = 60;
         updateSlotTimerDisplay();
@@ -418,6 +435,8 @@
         if (pendingMinutes === 0) {
             const alertEl = $('coin-alert');
             if (alertEl) alertEl.style.display = 'none';
+            if ($('coin-title')) $('coin-title').textContent = 'INSERT COINS NOW!';
+            if ($('slot-hero-badge-text')) $('slot-hero-badge-text').textContent = 'COIN SLOT OPEN & READY';
         }
         renderPending();
         startSlotCountdown();

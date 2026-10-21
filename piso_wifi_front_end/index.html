@@ -77,37 +77,42 @@
 <!-- Insert Coin Dialog with Realtime Hardware Listener -->
 <dialog id="coin-dialog" aria-labelledby="coin-title" aria-describedby="coin-description">
     <div class="dialog-heading"><span class="eyebrow">PISO WIFI COIN SLOT</span><button class="close" type="button" data-close aria-label="Close coin window">×</button></div>
-    <h2 id="coin-title">Insert Coin</h2>
 
-    <!-- Realtime Coin Slot Status Banner -->
-    <div class="slot-status-box" id="slot-status-box">
-        <span class="slot-pulse-dot"></span>
-        <div class="slot-status-text">
-            <strong>COIN SLOT ACTIVE &amp; LISTENING</strong>
-            <p id="coin-description">Drop ₱1 (5 mins), ₱5 (30 mins), ₱10 (1 hour), or ₱20 (3 hours) coins into the slot.</p>
+    <!-- MAJOR ANIMATED INSERT COIN SIGN -->
+    <div class="insert-coin-hero" id="slot-status-box">
+        <div class="hero-insert-badge">
+            <span class="slot-pulse-dot"></span>
+            <span id="slot-hero-badge-text">COIN SLOT OPEN &amp; READY</span>
+        </div>
+        <div class="coin-drop-stage" aria-hidden="true">
+            <div class="animated-coin">₱</div>
+            <div class="coin-slot-mouth"></div>
+        </div>
+        <h2 id="coin-title" class="hero-insert-title">INSERT COINS NOW!</h2>
+        <p id="coin-description" class="hero-insert-sub">Drop your ₱1, ₱5, ₱10, or ₱20 coin into the physical coin slot</p>
+        <div class="slot-countdown-row">
+            <span>⏳ Waiting for coin...</span>
+            <strong id="slot-timer">60s</strong>
+        </div>
+        <div class="slot-progress-track" aria-hidden="true">
+            <div class="slot-progress-fill" id="slot-progress-fill"></div>
         </div>
     </div>
 
     <!-- Non-clickable WiFi Time Rates Reference -->
-    <div class="coin-options" style="margin-bottom: 14px; text-align: center;" aria-label="WiFi Time Rates">
+    <div class="coin-options" style="margin-bottom: 12px; text-align: center;" aria-label="WiFi Time Rates">
         <div class="coin" style="pointer-events: none;"><span>₱1</span><small>5 mins</small></div>
         <div class="coin" style="pointer-events: none;"><span>₱5</span><small>30 mins</small></div>
         <div class="coin" style="pointer-events: none;"><span>₱10</span><small>1 hour</small></div>
         <div class="coin" style="pointer-events: none;"><span>₱20</span><small>3 hours</small></div>
     </div>
 
-    <!-- Countdown Timer Row -->
-    <div class="slot-countdown-row">
-        <span>Slot countdown:</span>
-        <strong id="slot-timer">60s</strong>
-    </div>
-
     <!-- Live Coin Notification Alert -->
     <div id="coin-alert" class="coin-notification-banner"></div>
 
     <div class="coin-summary" role="status" aria-live="polite">
-        <span>Coins inserted: <strong id="pending-coins">₱0</strong></span>
-        <span>Time to add: <strong id="pending-time">0 minutes</strong></span>
+        <span>Coins inserted<strong id="pending-coins">₱0</strong></span>
+        <span>Time to add<strong id="pending-time">0 minutes</strong></span>
     </div>
 
     <button id="connect" class="button primary dialog-action" type="button">START SESSION</button>
