@@ -262,9 +262,12 @@
     function renderPending() {
         if ($('pending-coins')) $('pending-coins').textContent = `₱${pendingCoins}`;
         if ($('pending-time')) $('pending-time').textContent = `${pendingMinutes} minutes`;
-        if ($('connect')) {
-            $('connect').disabled = false;
-            $('connect').textContent = pendingMinutes > 0
+        const connectBtn = $('connect');
+        if (connectBtn) {
+            connectBtn.disabled = false;
+            connectBtn.classList.remove('btn-start-clicked', 'btn-start-wait');
+            connectBtn.classList.toggle('btn-start-ready', pendingMinutes > 0);
+            connectBtn.textContent = pendingMinutes > 0
                 ? `START SESSION (+${pendingMinutes} MINS)`
                 : 'START SESSION';
         }
@@ -272,10 +275,21 @@
 
     // Commit and credit session
     async function commitPaymentSession() {
+        const connectBtn = $('connect');
+        if (connectBtn) {
+            connectBtn.classList.remove('btn-start-ready', 'btn-start-wait');
+            connectBtn.classList.add('btn-start-clicked');
+        }
+
         if (!pendingMinutes) {
             await pollLatestCoinLogs();
         }
         if (!pendingMinutes) {
+            if (connectBtn) {
+                connectBtn.classList.remove('btn-start-clicked');
+                connectBtn.classList.add('btn-start-wait');
+                connectBtn.textContent = '⏳ DROP A COIN FIRST...';
+            }
             const alertEl = $('coin-alert');
             if (alertEl) {
                 alertEl.textContent = '⚠️ Please insert a coin into the slot first (₱1 = 5 mins, ₱5 = 30 mins, ₱10 = 1 hr, ₱20 = 3 hrs).';
@@ -286,18 +300,25 @@
         }
         stopSlotCountdown();
 
+        if (connectBtn) {
+            connectBtn.textContent = '✓ SESSION STARTED!';
+        }
+
         state.coins += pendingCoins;
         state.points += pendingCoins;
         const addedMins = pendingMinutes;
 
         addTime(addedMins);
         playSessionStartSound();
-        $('coin-dialog')?.close();
         announce(`Payment accepted! ${addedMins} minutes added. You are now CONNECTED.`);
 
         pendingCoins = 0;
         pendingMinutes = 0;
-        renderPending();
+
+        setTimeout(() => {
+            $('coin-dialog')?.close();
+            renderPending();
+        }, 400);
     }
 
     // Track processed log IDs so Realtime + Polling never double-count a coin

@@ -91,3 +91,9 @@ td{padding:14px 0;border-top:1px solid #ffffff20}td:first-child{font-size:23px;f
 .slot-progress-fill{height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#facc15);transition:width 0.95s linear}
 .coin-notification-banner{display:none;background:#065f46;border:2px solid #34d399;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:#ecfdf5;font-weight:800;text-align:center;box-shadow:0 0 18px rgba(16,185,129,0.45);animation:coin-flash 0.5s ease}
 @keyframes coin-flash{0%{transform:scale(0.94);filter:brightness(1.6)}100%{transform:scale(1);filter:brightness(1)}}
+
+/* START SESSION Button Color States */
+#connect{transition:background 0.2s ease,color 0.2s ease,box-shadow 0.2s ease,transform 0.15s ease}
+#connect.btn-start-ready{background:#16a34a;box-shadow:0 0 20px rgba(34,197,94,0.55)}
+#connect.btn-start-clicked{background:#facc15!important;color:#0f172a!important;box-shadow:0 0 28px rgba(250,204,21,0.85)!important;transform:scale(0.98)}
+#connect.btn-start-wait{background:#ea580c!important;color:#ffffff!important;box-shadow:0 0 22px rgba(234,88,12,0.7)!important;transform:scale(0.98)}
