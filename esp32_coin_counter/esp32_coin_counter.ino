@@ -41,7 +41,16 @@ int totalPesos = 0;
 // Pulse train detection from Electronic Coin Slot (Allan / Universal)
 volatile int pulseCount = 0;
 volatile unsigned long lastPulseTime = 0;
-const unsigned long COIN_PULSE_TIMEOUT_MS = 300; // 300ms silence marks end of pulse train
+// 450ms silence marks end of coin pulse train
+const unsigned long COIN_PULSE_TIMEOUT_MS = 450; 
+
+// Decoder mode selection
+enum DecoderMode {
+  MODE_AUTO,     // Auto-detects Channel (1,2,3,4) and Value (1,5,10,20)
+  MODE_CHANNEL,  // Forces Channel Mode: 1p=₱1, 2p=₱5, 3p=₱10, 4p=₱20
+  MODE_VALUE     // Forces Value Mode: 1p=₱1, 5p=₱5, 10p=₱10, 20p=₱20
+};
+DecoderMode currentDecoderMode = MODE_AUTO;
 
 // FreeRTOS queue for asynchronous cloud sync (Core 1 processing -> Core 0 uploading)
 QueueHandle_t coinQueue;
@@ -52,7 +61,7 @@ TaskHandle_t cloudTaskHandle = NULL;
 // ========================================================
 unsigned long detectedTime = 0;
 bool showingDetectedCoin = false;
-const unsigned long detectedDisplayTime = 1500; // 1.5s popup when coin is inserted
+const unsigned long detectedDisplayTime = 1600; // 1.6s popup on LCD when coin is inserted
 
 // Periodic sync timer with Supabase (checks if web admin reset the vault to 0)
 unsigned long lastSyncTime = 0;
@@ -63,7 +72,8 @@ const unsigned long syncInterval = 4000; // Check every 4 seconds
 // ========================================================
 void IRAM_ATTR coinPulseISR();
 void processCoinPulses();
-void coinDetected(int denomination);
+int mapPulsesToDenomination(int pulses);
+void coinDetected(int denomination, int rawPulses);
 void showIdleScreen();
 void pushCoinToSupabase(int denomination);
 void syncWithSupabase(bool onBoot = false);
@@ -77,8 +87,8 @@ void checkSerialCommands();
 // Captures falling edge pulses from the coin slot signal line
 void IRAM_ATTR coinPulseISR() {
   unsigned long now = millis();
-  // Software debounce noise pulses shorter than 15ms
-  if (now - lastPulseTime > 15) {
+  // 12ms debounce: Captures fast 20ms-100ms coin pulses cleanly while rejecting noise spikes
+  if (now - lastPulseTime > 12) {
     pulseCount++;
     lastPulseTime = now;
   }
@@ -108,10 +118,27 @@ void setup() {
   lcd.setCursor(0, 1);
   lcd.print("CONNECTING WIFI");
 
-  Serial.println("\n==============================================");
-  Serial.println(" SMARTCOIN GROUP 4 - COINSLOT TELEMETRY NODE  ");
-  Serial.println("==============================================");
-  Serial.printf("[Coin Slot] Signal Pin: GPIO %d (Interrupt attached)\n", COIN_SLOT_PIN);
+  Serial.println("\n=======================================================");
+  Serial.println(" SMARTCOIN GROUP 4 - SMART COINSLOT PULSE DECODER      ");
+  Serial.println("=======================================================");
+  Serial.printf("[Coin Slot] Signal Pin: GPIO %d (Interrupt FALLING, 12ms debounce)\n", COIN_SLOT_PIN);
+
+  // Check pin resting state
+  int idleState = digitalRead(COIN_SLOT_PIN);
+  Serial.printf("[Coin Slot] Idle Voltage Reading: %s (%d)\n",
+                (idleState == HIGH) ? "HIGH / 3.3V (OK - Normally Open)" : "LOW / 0V (CHECK: Switch may be on NC!)",
+                idleState);
+
+  if (idleState == LOW) {
+    Serial.println("\n[!] WARNING: GPIO 27 is LOW at idle!");
+    Serial.println("[!] Check coin slot switch: set NO/NC switch to 'NO' (Normally Open)!\n");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("CHECK COINSLOT!");
+    lcd.setCursor(0, 1);
+    lcd.print("SET SWITCH: NO");
+    delay(2000);
+  }
 
   connectWiFi();
 
@@ -143,7 +170,7 @@ void setup() {
 // 8. MAIN LOOP
 // ========================================================
 void loop() {
-  // 1. Serial Monitor diagnostic commands (1, 5, 10, 20, STATUS, HELP)
+  // 1. Serial Monitor diagnostic commands (1, 5, 10, 20, PIN, MODE, STATUS, HELP)
   checkSerialCommands();
 
   // 2. Ensure WiFi auto-reconnects if dropped
@@ -162,7 +189,68 @@ void loop() {
 }
 
 // ========================================================
-// 9. COIN PULSE EVALUATION & DENOMINATION MAPPING
+// 9. SMART PULSE DECODER (Handles Channel & Value Modes)
+// ========================================================
+int mapPulsesToDenomination(int pulses) {
+  // 1. FORCED VALUE MODE (1p=₱1, 5p=₱5, 10p=₱10, 20p=₱20)
+  if (currentDecoderMode == MODE_VALUE) {
+    if (pulses == 1) return 1;
+    if (pulses >= 2 && pulses <= 7) return 5;
+    if (pulses >= 8 && pulses <= 14) return 10;
+    if (pulses >= 15 && pulses <= 25) return 20;
+    return pulses;
+  }
+
+  // 2. FORCED CHANNEL MODE (1p=₱1, 2p=₱5, 3p=₱10, 4p=₱20)
+  if (currentDecoderMode == MODE_CHANNEL) {
+    if (pulses == 1) return 1;
+    if (pulses == 2) return 5;
+    if (pulses == 3) return 10;
+    if (pulses == 4) return 20;
+    return pulses;
+  }
+
+  // 3. AUTO MODE (Default: Intelligently handles both Channel & Value configs)
+  // 1 pulse is ALWAYS ₱1
+  if (pulses == 1) {
+    return 1;
+  }
+
+  // Channel Mode signatures (Allan factory default: Ch1=1p, Ch2=2p, Ch3=3p, Ch4=4p)
+  if (pulses == 2) {
+    Serial.println("[Decoder] 2 Pulses -> Mapped as Channel 2 (₱5 Coin)");
+    return 5;
+  }
+  if (pulses == 3) {
+    Serial.println("[Decoder] 3 Pulses -> Mapped as Channel 3 (₱10 Coin)");
+    return 10;
+  }
+  if (pulses == 4) {
+    Serial.println("[Decoder] 4 Pulses -> Mapped as Channel 4 (₱20 Coin)");
+    return 20;
+  }
+
+  // Value Mode signatures (5=₱5, 10=₱10, 20=₱20) with noise tolerance window
+  if (pulses >= 5 && pulses <= 7) {
+    Serial.printf("[Decoder] %d Pulses -> Mapped as ₱5 Coin (5-pulse window)\n", pulses);
+    return 5;
+  }
+  if (pulses >= 8 && pulses <= 14) {
+    Serial.printf("[Decoder] %d Pulses -> Mapped as ₱10 Coin (10-pulse window)\n", pulses);
+    return 10;
+  }
+  if (pulses >= 15 && pulses <= 25) {
+    Serial.printf("[Decoder] %d Pulses -> Mapped as ₱20 Coin (20-pulse window)\n", pulses);
+    return 20;
+  }
+
+  // Fallback for custom configured pulse counts
+  Serial.printf("[Decoder] Unrecognized pulse count: %d pulses. Using direct value.\n", pulses);
+  return pulses;
+}
+
+// ========================================================
+// 10. COIN PULSE EVALUATION & DISPATCH
 // ========================================================
 void processCoinPulses() {
   unsigned long now = millis();
@@ -175,33 +263,26 @@ void processCoinPulses() {
     pulseCount = 0;
     interrupts();
 
-    // Map Philippine Peso pulses:
-    // Standard Multi-coin selector (Allan 1240A / Universal):
-    // 1 pulse = ₱1, 5 pulses = ₱5, 10 pulses = ₱10, 20 pulses = ₱20
-    int denom = 0;
-    if (pulses == 1) {
-      denom = 1;
-    } else if (pulses == 5) {
-      denom = 5;
-    } else if (pulses == 10) {
-      denom = 10;
-    } else if (pulses == 20) {
-      denom = 20;
-    } else {
-      // Direct pulse-to-peso fallback
-      denom = pulses;
-    }
+    // Decode pulses to exact Philippine Peso denomination
+    int denom = mapPulsesToDenomination(pulses);
 
     if (denom == 1)       count1++;
     else if (denom == 5)  count5++;
     else if (denom == 10) count10++;
     else if (denom == 20) count20++;
+    else {
+      Serial.printf("[Notice] Added raw %d to total\n", denom);
+    }
     totalPesos += denom;
 
-    Serial.printf("\n>>> [COIN ACCEPTED] %d Pulses -> ₱%d COIN! <<<\n", pulses, denom);
+    Serial.println("\n-------------------------------------------------------");
+    Serial.printf(">>> [COIN ACCEPTED] Pulses: %d  ==>  DENOMINATION: ₱%d <<<\n", pulses, denom);
+    Serial.printf("Vault: ₱%d | ₱1:[%d] ₱5:[%d] ₱10:[%d] ₱20:[%d]\n",
+                  totalPesos, count1, count5, count10, count20);
+    Serial.println("-------------------------------------------------------");
 
     // Show what coin was inserted on 16x2 LCD
-    coinDetected(denom);
+    coinDetected(denom, pulses);
 
     // Queue for background Supabase upload on Core 0
     xQueueSend(coinQueue, &denom, 0);
@@ -209,7 +290,7 @@ void processCoinPulses() {
 }
 
 // ========================================================
-// 10. LCD DISPLAY HANDLERS
+// 11. LCD DISPLAY HANDLERS
 // ========================================================
 
 // Idle screen: Exactly "SMARTCOIN" and "Insert your coin" (No money totals displayed)
@@ -221,8 +302,8 @@ void showIdleScreen() {
   lcd.print("Insert your coin");
 }
 
-// Shows what coin was inserted inside the machine
-void coinDetected(int denomination) {
+// Shows what coin was inserted along with pulse count
+void coinDetected(int denomination, int rawPulses) {
   showingDetectedCoin = true;
   detectedTime = millis();
 
@@ -230,26 +311,22 @@ void coinDetected(int denomination) {
   lcd.setCursor(1, 0);
   lcd.print("COIN INSERTED:");
 
-  lcd.setCursor(2, 1);
+  lcd.setCursor(1, 1);
   if (denomination == 1) {
-    lcd.print("1 PESO COIN");
+    lcd.print("1 PESO (" + String(rawPulses) + "p)");
   } else if (denomination == 5) {
-    lcd.print("5 PESOS COIN");
+    lcd.print("5 PESOS (" + String(rawPulses) + "p)");
   } else if (denomination == 10) {
-    lcd.print("10 PESOS COIN");
+    lcd.print("10 PESOS (" + String(rawPulses) + "p)");
   } else if (denomination == 20) {
-    lcd.print("20 PESOS COIN");
+    lcd.print("20 PESOS (" + String(rawPulses) + "p)");
   } else {
-    lcd.print(String(denomination) + " PESO COIN");
+    lcd.print("PULSES: " + String(rawPulses));
   }
-
-  Serial.println("\n>>> [LCD NOTIFIED] <<<");
-  Serial.printf("Coin: ₱%d | Vault: ₱%d | Breakdown: 1x[%d] 5x[%d] 10x[%d] 20x[%d]\n",
-                denomination, totalPesos, count1, count5, count10, count20);
 }
 
 // ========================================================
-// 11. ASYNCHRONOUS FREE-RTOS CLOUD SYNC TASK (Core 0)
+// 12. ASYNCHRONOUS FREE-RTOS CLOUD SYNC TASK (Core 0)
 // ========================================================
 void cloudSyncTask(void *pvParameters) {
   int receivedDenom = 0;
@@ -274,7 +351,7 @@ void cloudSyncTask(void *pvParameters) {
 }
 
 // ========================================================
-// 12. SUPABASE CLOUD SYNC (DEPOSIT TO DATABASE)
+// 13. SUPABASE CLOUD SYNC (DEPOSIT TO DATABASE)
 // ========================================================
 void pushCoinToSupabase(int denomination) {
   if (WiFi.status() != WL_CONNECTED) {
@@ -371,7 +448,7 @@ int extractJsonInt(const String &json, const String &key) {
 }
 
 // ========================================================
-// 13. FULL DATABASE SYNCHRONIZATION (Handles Web Resets)
+// 14. FULL DATABASE SYNCHRONIZATION (Handles Web Resets)
 // ========================================================
 void syncWithSupabase(bool onBoot) {
   if (WiFi.status() != WL_CONNECTED) return;
@@ -429,7 +506,7 @@ void syncWithSupabase(bool onBoot) {
 }
 
 // ========================================================
-// 14. WIFI CONNECTION HELPER
+// 15. WIFI CONNECTION HELPER
 // ========================================================
 void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
@@ -455,7 +532,7 @@ void connectWiFi() {
 }
 
 // ========================================================
-// 15. SERIAL MONITOR DIAGNOSTIC COMMANDS
+// 16. SERIAL MONITOR DIAGNOSTIC COMMANDS
 // ========================================================
 void checkSerialCommands() {
   if (Serial.available() > 0) {
@@ -488,14 +565,39 @@ void checkSerialCommands() {
       pulseCount = 20;
       lastPulseTime = millis();
       interrupts();
+    } else if (input == "P" || input == "PIN") {
+      int pinVal = digitalRead(COIN_SLOT_PIN);
+      Serial.printf("\n[PIN CHECK] GPIO 27 (Coin Slot Line) = %s (%d)\n",
+                    (pinVal == HIGH) ? "HIGH (3.3V - Normal / Idle)" : "LOW (0V - TRIGGERED or NC Switch!)",
+                    pinVal);
+      Serial.println("  -> If reading LOW with no coin inside, set coin slot switch from NC to NO!\n");
+    } else if (input == "MODE" || input == "M") {
+      Serial.println("\n--- CURRENT DECODER MODE ---");
+      if (currentDecoderMode == MODE_AUTO) Serial.println("MODE: AUTO (Detects both Channel & Value)");
+      else if (currentDecoderMode == MODE_CHANNEL) Serial.println("MODE: CHANNEL (1p=₱1, 2p=₱5, 3p=₱10, 4p=₱20)");
+      else if (currentDecoderMode == MODE_VALUE) Serial.println("MODE: VALUE (1p=₱1, 5p=₱5, 10p=₱10, 20p=₱20)");
+      Serial.println("To switch mode: type 'MODE AUTO', 'MODE CH', or 'MODE VAL'\n");
+    } else if (input == "MODE AUTO") {
+      currentDecoderMode = MODE_AUTO;
+      Serial.println("\n[Decoder] Switched to AUTO MODE (Accepts both Channel & Value pulses)");
+    } else if (input == "MODE CH" || input == "MODE CHANNEL") {
+      currentDecoderMode = MODE_CHANNEL;
+      Serial.println("\n[Decoder] Switched to CHANNEL MODE (1p=₱1, 2p=₱5, 3p=₱10, 4p=₱20)");
+    } else if (input == "MODE VAL" || input == "MODE VALUE") {
+      currentDecoderMode = MODE_VALUE;
+      Serial.println("\n[Decoder] Switched to VALUE MODE (1p=₱1, 5p=₱5, 10p=₱10, 20p=₱20)");
     } else if (input == "STATUS") {
-      Serial.printf("\n--- SMARTCOIN STATUS ---\nTotal: ₱%d | ₱1: %d | ₱5: %d | ₱10: %d | ₱20: %d\nWiFi: %s\n\n",
+      Serial.printf("\n--- SMARTCOIN STATUS ---\nTotal: ₱%d | ₱1: %d | ₱5: %d | ₱10: %d | ₱20: %d\nWiFi: %s | GPIO 27: %s\nMode: %s\n\n",
                     totalPesos, count1, count5, count10, count20,
-                    (WiFi.status() == WL_CONNECTED) ? "CONNECTED" : "DISCONNECTED");
+                    (WiFi.status() == WL_CONNECTED) ? "CONNECTED" : "DISCONNECTED",
+                    (digitalRead(COIN_SLOT_PIN) == HIGH) ? "HIGH (Ready)" : "LOW (Active/NC)",
+                    (currentDecoderMode == MODE_AUTO) ? "AUTO" : (currentDecoderMode == MODE_CHANNEL ? "CHANNEL" : "VALUE"));
     } else if (input == "HELP" || input == "?") {
       Serial.println("\n--- SMARTCOIN ESP32 SERIAL COMMANDS ---");
+      Serial.println("P / PIN         : Check live HIGH/LOW state of GPIO 27");
+      Serial.println("MODE            : Show or change pulse decoding mode (AUTO, CH, VAL)");
       Serial.println("1 / 5 / 10 / 20 : Simulate coin pulses (tests LCD & Supabase Upload)");
-      Serial.println("STATUS          : View current coin counts and WiFi status");
+      Serial.println("STATUS          : View current coin counts, WiFi, and pin state");
       Serial.println("----------------------------------------\n");
     }
   }
