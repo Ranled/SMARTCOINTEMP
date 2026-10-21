@@ -97,28 +97,115 @@
         }
     }
 
-    // Play retro arcade coin chime synthesized via Web Audio API
-    function playCoinChime() {
+    // Shared Web Audio API Context (unlocked on first user interaction so async coin drops always play sound)
+    let sharedAudioCtx = null;
+    function getAudioContext() {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return null;
+        if (!sharedAudioCtx) {
+            sharedAudioCtx = new AudioCtx();
+        }
+        if (sharedAudioCtx.state === 'suspended') {
+            sharedAudioCtx.resume().catch(() => {});
+        }
+        return sharedAudioCtx;
+    }
+
+    // Unlock audio context on any user tap/click/key
+    ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(evt => {
+        window.addEventListener(evt, () => getAudioContext(), { passive: true });
+    });
+
+    // Play retro arcade coin chime + voice announcement when coin is inserted
+    function playCoinChime(denom = 0, mins = 0) {
         try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            const ctx = new AudioCtx();
+            const ctx = getAudioContext();
+            if (ctx) {
+                const now = ctx.currentTime;
+
+                // Dual-oscillator rich arcade coin chime (B5 -> E6 -> B6)
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc1.type = 'triangle';
+                osc2.type = 'sine';
+
+                osc1.frequency.setValueAtTime(987.77, now);        // B5
+                osc1.frequency.setValueAtTime(1318.51, now + 0.08); // E6
+                osc1.frequency.setValueAtTime(1975.53, now + 0.18); // B6
+
+                osc2.frequency.setValueAtTime(1975.53, now);        // Harmonic
+                osc2.frequency.setValueAtTime(2637.02, now + 0.08);
+
+                gain.gain.setValueAtTime(0.6, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.55);
+                osc2.stop(now + 0.55);
+            }
+        } catch (_) {}
+
+        // Optional voice prompt ("1 peso inserted, plus 5 minutes")
+        try {
+            if (denom > 0 && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const text = denom === 1
+                    ? `1 peso inserted, plus ${mins} minutes`
+                    : `${denom} pesos inserted, plus ${mins} minutes`;
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.rate = 1.08;
+                utter.volume = 1.0;
+                window.speechSynthesis.speak(utter);
+            }
+        } catch (_) {}
+    }
+
+    // Short activation beep when user clicks INSERT COIN
+    function playSlotReadySound() {
+        try {
+            const ctx = getAudioContext();
+            if (!ctx) return;
+            const now = ctx.currentTime;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(659.25, now); // E5
+            osc.frequency.setValueAtTime(880.00, now + 0.07); // A5
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
             osc.connect(gain);
             gain.connect(ctx.destination);
-            osc.type = 'sine';
-
-            const now = ctx.currentTime;
-            osc.frequency.setValueAtTime(987.77, now); // Note B5
-            osc.frequency.setValueAtTime(1318.51, now + 0.08); // Note E6
-
-            gain.gain.setValueAtTime(0.25, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
             osc.start(now);
-            osc.stop(now + 0.35);
+            osc.stop(now + 0.22);
+        } catch (_) {}
+    }
+
+    // Connected chime when START SESSION is clicked
+    function playSessionStartSound() {
+        try {
+            const ctx = getAudioContext();
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(523.25, now);       // C5
+            osc.frequency.setValueAtTime(659.25, now + 0.09); // E5
+            osc.frequency.setValueAtTime(783.99, now + 0.18); // G5
+            osc.frequency.setValueAtTime(1046.50, now + 0.27); // C6
+            gain.gain.setValueAtTime(0.45, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.55);
         } catch (_) {}
     }
 
@@ -190,6 +277,7 @@
         const addedMins = pendingMinutes;
 
         addTime(addedMins);
+        playSessionStartSound();
         $('coin-dialog')?.close();
         announce(`Payment accepted! ${addedMins} minutes added. You are now CONNECTED.`);
 
@@ -217,7 +305,7 @@
         const rate = config.rates.find(r => r.pesos === denom) || { pesos: denom, minutes: denom * 5 };
         const mins = rate.minutes;
 
-        playCoinChime();
+        playCoinChime(denom, mins);
 
         // If coin dialog isn't open, open it automatically so user sees live payment
         const coinDialog = $('coin-dialog');
@@ -326,6 +414,7 @@
 
     // Event Listeners
     $('insert-coin')?.addEventListener('click', () => {
+        playSlotReadySound();
         if (pendingMinutes === 0) {
             const alertEl = $('coin-alert');
             if (alertEl) alertEl.style.display = 'none';

@@ -171,6 +171,7 @@ function subscribeToRealtime() {
         transactionLogs.unshift(payload.new);
         renderLogsTable();
         if (payload.new.event_type === 'DEPOSIT') {
+          playAdminCoinChime();
           showToast(`🪙 +₱${payload.new.denomination || payload.new.amount} Coin Deposited! (Vault: ₱${payload.new.total_pesos})`);
         } else if (payload.new.event_type === 'WITHDRAWAL') {
           showToast(`💸 ₱${payload.new.amount} Cash Collected / Vault Reset!`);
@@ -178,6 +179,38 @@ function subscribeToRealtime() {
       }
     })
     .subscribe();
+}
+
+// Shared AudioContext for Admin Coin Chime
+let adminAudioCtx = null;
+['pointerdown', 'touchstart', 'click', 'keydown'].forEach(evt => {
+  window.addEventListener(evt, () => {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx && !adminAudioCtx) adminAudioCtx = new AudioCtx();
+    if (adminAudioCtx && adminAudioCtx.state === 'suspended') adminAudioCtx.resume().catch(() => {});
+  }, { passive: true });
+});
+
+function playAdminCoinChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!adminAudioCtx) adminAudioCtx = new AudioCtx();
+    if (adminAudioCtx.state === 'suspended') adminAudioCtx.resume().catch(() => {});
+    const now = adminAudioCtx.currentTime;
+    const osc = adminAudioCtx.createOscillator();
+    const gain = adminAudioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(987.77, now);
+    osc.frequency.setValueAtTime(1318.51, now + 0.08);
+    osc.frequency.setValueAtTime(1975.53, now + 0.18);
+    gain.gain.setValueAtTime(0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    osc.connect(gain);
+    gain.connect(adminAudioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.5);
+  } catch (_) {}
 }
 
 function detectPulse(oldData, newData) {
