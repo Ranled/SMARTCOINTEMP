@@ -37,7 +37,10 @@ header('Content-Type: text/html; charset=utf-8');
             <div id="session" class="session" hidden>
                 <p class="eyebrow" id="time-label">TIME REMAINING</p>
                 <p id="timer" class="timer" aria-labelledby="time-label">00:00:00</p>
-                <button id="pause" class="text-button" type="button">Pause time</button>
+                <div style="display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 8px;">
+                    <button id="pause" class="text-button" type="button">Pause time</button>
+                    <button id="end-session" class="text-button" type="button" style="color: #ff9b9b; font-weight: 700;">End session</button>
+                </div>
             </div>
         </section>
         <div class="controls">
@@ -96,9 +99,9 @@ header('Content-Type: text/html; charset=utf-8');
 </dialog>
 
 <dialog id="reset-dialog" aria-labelledby="reset-title">
-    <div class="dialog-heading"><span class="eyebrow">START FRESH</span><button class="close" type="button" data-close aria-label="Close reset">×</button></div>
-    <h2 id="reset-title">Reset this session?</h2><p class="dialog-copy">Clear your time, coins, points and redeemed vouchers in this browser.</p>
-    <button id="confirm-reset" class="button primary dialog-action" type="button">RESET SESSION</button>
+    <div class="dialog-heading"><span class="eyebrow">END CONNECTION</span><button class="close" type="button" data-close aria-label="Close end session">×</button></div>
+    <h2 id="reset-title">End this session?</h2><p class="dialog-copy">This will end your active WiFi timer and clear your current session.</p>
+    <button id="confirm-reset" class="button primary dialog-action" type="button" style="background: #dc2626;">END SESSION</button>
     <button class="text-button cancel" type="button" data-close>Keep my session</button>
 </dialog>
 

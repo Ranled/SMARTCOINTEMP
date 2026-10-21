@@ -357,6 +357,7 @@
     $('connect')?.addEventListener('click', () => {
         commitPaymentSession();
     });
+
     // Pause / Resume Session
     $('pause')?.addEventListener('click', () => {
         const seconds = secondsLeft();
@@ -405,8 +406,9 @@
 
     $('voucher')?.addEventListener('input', () => $('voucher').removeAttribute('aria-invalid'));
 
-    // Reset Demo / Session Dialog
+    // End Session Dialog & Handlers
     $('reset')?.addEventListener('click', () => showDialog('reset-dialog'));
+    $('end-session')?.addEventListener('click', () => showDialog('reset-dialog'));
     $('confirm-reset')?.addEventListener('click', () => {
         state = empty();
         save();
@@ -416,7 +418,7 @@
             $('voucher').removeAttribute('aria-invalid');
         }
         $('reset-dialog')?.close();
-        announce('Session reset. Insert a coin or use a voucher to begin.');
+        announce('Session ended. Insert a coin to start a new session.');
     });
 
     // Admin Login Modal Handlers
@@ -454,10 +456,9 @@
     // 1-second countdown interval
     function tick() {
         if (state.deadline !== null && secondsLeft() === 0) {
-            state.remaining = 0;
-            state.deadline = null;
+            state = empty();
             save();
-            announce('Your connection time has ended. Insert coins or a voucher to reconnect.');
+            announce('Session ended! Your connection time has finished. Insert a coin to start a new session.');
         }
         render();
     }
