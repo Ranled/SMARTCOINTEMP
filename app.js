@@ -1238,8 +1238,65 @@ async function fetchLatestWithdrawCommand() {
   }
 }
 
+// Direct manual servo test trigger from web dashboard (no ₱100 minimum required)
+window.testServoDirect = async function(denom) {
+  if (!supabaseClient) {
+    showToast('Supabase client not initialized. Check Supabase connection in settings.');
+    return;
+  }
+
+  const btn = document.getElementById(`testServoBtn${denom}`);
+  const origText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spin-icon">⏳</span> TESTING...`;
+  }
+
+  showToast(`Queueing test pulse for ₱${denom} Servo (GPIO Pin)...`);
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('withdraw_commands')
+      .insert({
+        denomination: denom,
+        quantity: 1,
+        status: 'pending',
+        notes: `Manual Servo Test for ₱${denom} via Web UI`
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Servo Test Error]', error);
+      showToast(`Error: ${error.message}. Ensure table 'withdraw_commands' exists in Supabase!`);
+    } else {
+      showToast(`✅ Command sent for ₱${denom} Servo! Watch the servo rotate 0° → 180° → 0°.`);
+      const angleBadge = document.getElementById(`servoAngleBadge${denom}`);
+      if (angleBadge) {
+        angleBadge.textContent = '180° ACTIVE';
+        angleBadge.className = 'servo-angle-badge active-180';
+        setTimeout(() => {
+          angleBadge.textContent = '0° HOME';
+          angleBadge.className = 'servo-angle-badge';
+        }, 2200);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    showToast(`Test error: ${err.message}`);
+  } finally {
+    if (btn) {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+      }, 1500);
+    }
+  }
+};
+
 // Global hooks
 window.quickWithdrawDenom = quickWithdrawDenom;
 
 // Run on page load
 window.addEventListener('DOMContentLoaded', initSupabase);
+

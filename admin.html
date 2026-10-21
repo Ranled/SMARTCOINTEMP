@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>SmartCoin | Admin Vault Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-badge"></div>
+        <div>
+          <h1 class="brand-title">SMARTCOIN // GROUP 4</h1>
+          <p class="brand-sub">ADMIN VAULT MONITOR & AUDIT TRAIL</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <div class="sync-indicator" id="syncStatus">
+          <span class="dot"></span>
+          <span class="sync-text">DISCONNECTED</span>
+        </div>
+        <button id="configBtn" class="btn btn-outline btn-sm" title="Configure Supabase API Keys">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          API CONFIG
+        </button>
+        <a href="index.html" class="btn btn-outline btn-sm" title="Return to Customer Piso WiFi Portal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          PISO WIFI PORTAL
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-grid">
+      <!-- Total Vault Display -->
+      <section class="vault-card">
+        <div class="vault-top-banner">
+          <div class="vault-label-group">
+            <span class="label-mono">LIVE VAULT BALANCE</span>
+            <span class="label-tag-white">ACTIVE CONTAINER</span>
+          </div>
+          <span class="chip-status" id="lastUpdated">SYNCING WITH DATABASE...</span>
+        </div>
+        
+        <div class="vault-main">
+          <div class="currency-symbol">₱</div>
+          <div class="vault-value" id="totalAmount">0</div>
+        </div>
+
+        <div class="vault-footer">
+          <div class="metrics-row">
+            <div class="metric-card">
+              <span class="metric-label">TOTAL COINS INSIDE</span>
+              <span class="metric-val highlight-white" id="totalCoinsCount">0 PCS</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">CONTAINER STATE</span>
+              <span class="metric-val highlight-green" id="containerState">READY & ONLINE</span>
+            </div>
+          </div>
+          
+          <div class="actions">
+            <!-- Reset Vault Button: Used when the owner physically collects coins -->
+            <button id="resetVaultBtn" class="btn btn-primary btn-reset-vault" title="Reset vault counter after physically collecting coins">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                <path d="M21 3v5h-5"></path>
+                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                <path d="M3 21v-5h5"></path>
+              </svg>
+              RESET STATUS / CASH COLLECTED
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section Title for Denomination Breakdown -->
+      <div class="section-divider-title">
+        <span>DENOMINATION BREAKDOWN (LIVE COINS COUNT)</span>
+      </div>
+
+      <!-- Denomination Breakdown Grid -->
+      <section class="denominations-grid">
+        <!-- ₱1 Coin Card -->
+        <div class="coin-card" id="card-p1">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱1</span>
+              <span class="coin-name-tag">ONE PESO</span>
+            </div>
+            <div class="coin-status-badge" id="shareBadge1">0% OF VAULT</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count1">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal1">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar1" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Subtotal:</span>
+            <span class="threshold-val met" id="progress1">₱0</span>
+          </div>
+        </div>
+
+        <!-- ₱5 Coin Card -->
+        <div class="coin-card" id="card-p5">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱5</span>
+              <span class="coin-name-tag">FIVE PESOS</span>
+            </div>
+            <div class="coin-status-badge" id="shareBadge5">0% OF VAULT</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count5">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal5">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar5" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Subtotal:</span>
+            <span class="threshold-val met" id="progress5">₱0</span>
+          </div>
+        </div>
+
+        <!-- ₱10 Coin Card -->
+        <div class="coin-card" id="card-p10">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱10</span>
+              <span class="coin-name-tag">TEN PESOS</span>
+            </div>
+            <div class="coin-status-badge" id="shareBadge10">0% OF VAULT</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count10">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal10">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar10" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Subtotal:</span>
+            <span class="threshold-val met" id="progress10">₱0</span>
+          </div>
+        </div>
+
+        <!-- ₱20 Coin Card -->
+        <div class="coin-card" id="card-p20">
+          <div class="coin-header">
+            <div class="coin-badge-container">
+              <span class="coin-badge">₱20</span>
+              <span class="coin-name-tag">TWENTY PESOS</span>
+            </div>
+            <div class="coin-status-badge" id="shareBadge20">0% OF VAULT</div>
+          </div>
+          <div class="coin-count-box">
+            <div class="coin-count" id="count20">0</div>
+            <div class="coin-unit">COINS (<span id="subtotal20">₱0</span>)</div>
+          </div>
+          <div class="coin-bar-track">
+            <div class="coin-bar-fill" id="bar20" style="width: 0%"></div>
+          </div>
+          <div class="coin-threshold-info">
+            <span class="threshold-label">Subtotal:</span>
+            <span class="threshold-val met" id="progress20">₱0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Logs / Audit Trail Section -->
+      <section class="logs-section">
+        <div class="section-toolbar">
+          <div>
+            <h2 class="section-title">TRANSACTION LOGS & AUDIT TRAIL</h2>
+            <p class="section-sub">Permanent record of deposits and collections (preserved forever)</p>
+          </div>
+          <div class="filter-group">
+            <button class="filter-btn active" data-filter="ALL">ALL RECORDS</button>
+            <button class="filter-btn" data-filter="DEPOSIT">DEPOSITS</button>
+            <button class="filter-btn" data-filter="WITHDRAWAL">COLLECTIONS</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="logs-table">
+            <thead>
+              <tr>
+                <th>TIMESTAMP</th>
+                <th>EVENT TYPE</th>
+                <th>DENOMINATION</th>
+                <th>AMOUNT</th>
+                <th>CONTAINER SNAPSHOT</th>
+                <th>VAULT TOTAL</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <tr>
+                <td colspan="7" class="table-empty">Connecting to database...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Config Modal -->
+  <div class="modal-backdrop" id="configModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>SUPABASE CONNECTION CONFIG</h3>
+        <button class="close-modal" id="closeConfigBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="help-text">Enter your Supabase project credentials. These are securely stored in your browser's local storage.</p>
+        <div class="form-group">
+          <label for="supabaseUrlInput">PROJECT URL</label>
+          <input type="text" id="supabaseUrlInput" placeholder="https://your-project.supabase.co">
+        </div>
+        <div class="form-group">
+          <label for="supabaseKeyInput">ANON PUBLIC API KEY</label>
+          <input type="password" id="supabaseKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="cancelConfigBtn">CANCEL</button>
+        <button class="btn btn-primary" id="saveConfigBtn">SAVE & CONNECT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Status / Cash Collected Confirmation Modal -->
+  <div class="modal-backdrop" id="resetModal">
+    <div class="modal-box confirm-box">
+      <div class="modal-header confirm-header">
+        <div class="confirm-header-content">
+          <div class="confirm-alert-icon">🔄</div>
+          <div>
+            <h3 class="confirm-title">RESET VAULT & RECORD COLLECTION</h3>
+            <span class="confirm-subtitle">PHYSICAL COIN WITHDRAWAL SYNC</span>
+          </div>
+        </div>
+        <button class="close-modal" id="closeResetModalBtn">&times;</button>
+      </div>
+      <div class="modal-body confirm-body">
+        <p class="confirm-text">
+          Use this when you physically collect the coins from the box. The system will record the collection into transaction logs and reset the vault balance to ₱0.
+        </p>
+        <div class="confirm-summary-card">
+          <div class="confirm-summary-row">
+            <span class="confirm-label">TOTAL CASH TO RECORD:</span>
+            <strong class="confirm-val highlight-amount" id="resetAmountText">₱0</strong>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">COINS COLLECTED:</span>
+            <span class="confirm-val" id="resetCoinsText">0 pcs</span>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">COIN BREAKDOWN:</span>
+            <span class="confirm-val" id="resetBreakdownText">₱1: 0 | ₱5: 0 | ₱10: 0 | ₱20: 0</span>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 14px;">
+          <label for="resetNotesInput">COLLECTION NOTES (OPTIONAL)</label>
+          <input type="text" id="resetNotesInput" placeholder="e.g. Weekly collection by Admin">
+        </div>
+      </div>
+      <div class="modal-footer confirm-footer">
+        <button class="btn btn-outline" id="cancelResetModalBtn">CANCEL</button>
+        <button class="btn btn-danger-confirm" id="confirmResetActionBtn">YES, RESET STATUS TO ₱0</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

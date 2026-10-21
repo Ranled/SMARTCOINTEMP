@@ -190,6 +190,28 @@ body {
   font-weight: 600;
 }
 
+.btn-reset-vault {
+  background: #ea580c !important;
+  color: #ffffff !important;
+  border: 1px solid #c2410c !important;
+  padding: 10px 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-reset-vault:hover:not(:disabled) {
+  background: #c2410c !important;
+  border-color: #9a3412 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
+}
+
 .btn-danger {
   background: var(--danger);
   color: #fff;
@@ -1748,5 +1770,49 @@ button, input, select, .coin-select-item {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+.card-btn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.btn-test-servo {
+  width: 100%;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border-radius: 6px;
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-test-servo:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #64748b;
+  transform: translateY(-1px);
+}
+
+.btn-test-servo:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-test-servo:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 
 

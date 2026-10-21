@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <ESP32Servo.h>
 #include <HTTPClient.h>
 #include <LiquidCrystal_I2C.h>
 #include <WiFi.h>
@@ -22,58 +21,16 @@ const char *SUPABASE_KEY =
     "8udhomlBQZc0zDBUTHvAZBEcVMOMHZS3J5XqLYlf5C0";
 
 // ========================================================
-// 2. HARDWARE PIN DEFINITIONS
+// 2. HARDWARE PIN DEFINITIONS (COIN SLOT & 16x2 LCD)
 // ========================================================
-// Fast Optical IR Coin Sensors
-#define IR_1_PESO 27
-#define IR_5_PESO 26
-#define IR_10_PESO 25
-#define IR_20_PESO 33
+// Electronic Coin Slot Signal Pin (White Wire)
+#define COIN_SLOT_PIN 27
 
-// Servos for Automated Coin Dispensers (1 per coin tube: ₱1, ₱5, ₱10, ₱20)
-#define SERVO_1_PIN  18 // Servo for ₱1 coin tube
-#define SERVO_5_PIN  19 // Servo for ₱5 coin tube
-#define SERVO_10_PIN 23 // Servo for ₱10 coin tube
-#define SERVO_20_PIN 13 // Servo for ₱20 coin tube (or GPIO 32/14)
-
+// 16x2 I2C LCD Display (SDA: GPIO 21, SCL: GPIO 22)
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // ========================================================
-// 3. AUTOMATED DISPENSER (0° -> 180° -> 0°) CONFIGURATION
-// ========================================================
-const int SERVO_HOME = 0;        // 0°: Hold/Load position (bottom coin drops into slot)
-const int SERVO_DISPENSE = 180;  // 180°: Dispense position (coin drops through cutout into tray)
-
-// Mechanical sequence timing (in milliseconds)
-const unsigned long WITHDRAW_POLL_INTERVAL_MS = 1500; // Poll Supabase every 1.5s
-const unsigned long SERVO_TRAVEL_MS = 400;           // Time to sweep 0° -> 180°
-const unsigned long SERVO_HOLD_MS = 350;             // Time to hold at 180° for gravity drop
-const unsigned long SERVO_RETURN_MS = 400;           // Time to return 180° -> 0°
-
-Servo servoP1;
-Servo servoP5;
-Servo servoP10;
-Servo servoP20;
-
-// Dispenser Sequence Finite State Machine
-enum DispenseStage {
-  DISPENSE_IDLE,
-  ROTATE_180,
-  HOLD_AT_180,
-  RETURN_TO_0,
-  COMPLETE_DISPENSE
-};
-
-DispenseStage dispenseStage = DISPENSE_IDLE;
-unsigned long dispenseStageStartedAt = 0;
-unsigned long lastWithdrawPollAt = 0;
-long activeWithdrawCommandId = -1;
-int activeWithdrawDenom = 0;
-int activeWithdrawQty = 1;
-bool withdrawCommandActive = false;
-
-// ========================================================
-// 4. FAST COIN COUNTERS & STATE MACHINE
+// 3. COIN COUNTERS & PULSE INTERRUPT STATE
 // ========================================================
 int count1 = 0;
 int count5 = 0;
@@ -81,54 +38,51 @@ int count10 = 0;
 int count20 = 0;
 int totalPesos = 0;
 
-// Individual IR sensor state tracker to prevent repeated triggers
-struct CoinSensor {
-  int pin;
-  int denom;
-  int lastState;
-  unsigned long stateChangeTime;
-  bool isBlocked;
-};
+// Pulse train detection from Electronic Coin Slot (Allan / Universal)
+volatile int pulseCount = 0;
+volatile unsigned long lastPulseTime = 0;
+const unsigned long COIN_PULSE_TIMEOUT_MS = 300; // 300ms silence marks end of pulse train
 
-CoinSensor sensors[4] = {{IR_1_PESO, 1, HIGH, 0, false},
-                         {IR_5_PESO, 5, HIGH, 0, false},
-                         {IR_10_PESO, 10, HIGH, 0, false},
-                         {IR_20_PESO, 20, HIGH, 0, false}};
-
-// FreeRTOS queue for asynchronous cloud sync
+// FreeRTOS queue for asynchronous cloud sync (Core 1 processing -> Core 0 uploading)
 QueueHandle_t coinQueue;
 TaskHandle_t cloudTaskHandle = NULL;
 
 // ========================================================
-// 5. TIMERS & DISPLAY STATE
+// 4. TIMERS & DISPLAY STATE
 // ========================================================
 unsigned long detectedTime = 0;
 bool showingDetectedCoin = false;
-const unsigned long detectedDisplayTime = 1500; // 1.5s snappy display popup
+const unsigned long detectedDisplayTime = 1500; // 1.5s popup when coin is inserted
 
-// Periodic sync timer to check for remote withdrawals
+// Periodic sync timer with Supabase (checks if web admin reset the vault to 0)
 unsigned long lastSyncTime = 0;
-const unsigned long syncInterval = 3000; // Check every 3 seconds
+const unsigned long syncInterval = 4000; // Check every 4 seconds
 
 // ========================================================
-// 6. FUNCTION DECLARATIONS
+// 5. FUNCTION DECLARATIONS
 // ========================================================
-void scanCoinSensors();
+void IRAM_ATTR coinPulseISR();
+void processCoinPulses();
 void coinDetected(int denomination);
-void showOverall();
+void showIdleScreen();
 void pushCoinToSupabase(int denomination);
 void syncWithSupabase(bool onBoot = false);
 void connectWiFi();
 void cloudSyncTask(void *pvParameters);
+void checkSerialCommands();
 
-// Automated Coin Withdrawal Dispenser functions
-bool fetchPendingWithdrawCommand(long &id, int &denom, int &qty);
-bool updateWithdrawCommand(long id, const String &status);
-void startWithdrawSequence(long id, int denom, int qty);
-void runWithdrawSequence();
-Servo* getServoForDenom(int denom);
-void deductCoin(int denom);
-void pushWithdrawalToSupabase(int denomination);
+// ========================================================
+// 6. INTERRUPT SERVICE ROUTINE (PULSE CAPTURE)
+// ========================================================
+// Captures falling edge pulses from the coin slot signal line
+void IRAM_ATTR coinPulseISR() {
+  unsigned long now = millis();
+  // Software debounce noise pulses shorter than 15ms
+  if (now - lastPulseTime > 15) {
+    pulseCount++;
+    lastPulseTime = now;
+  }
+}
 
 // ========================================================
 // 7. SETUP
@@ -139,506 +93,188 @@ void setup() {
   // Initialize FreeRTOS Queue for fast background cloud sync
   coinQueue = xQueueCreate(50, sizeof(int));
 
-  // Configure IR sensor inputs with pullup
-  pinMode(IR_1_PESO, INPUT_PULLUP);
-  pinMode(IR_5_PESO, INPUT_PULLUP);
-  pinMode(IR_10_PESO, INPUT_PULLUP);
-  pinMode(IR_20_PESO, INPUT_PULLUP);
+  // Configure Coin Slot interrupt pin with internal pullup
+  pinMode(COIN_SLOT_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(COIN_SLOT_PIN), coinPulseISR, FALLING);
 
-  // Configure 4x Coin Dispenser Servos (₱1, ₱5, ₱10, ₱20)
-  servoP1.setPeriodHertz(50);
-  servoP5.setPeriodHertz(50);
-  servoP10.setPeriodHertz(50);
-  servoP20.setPeriodHertz(50);
-
-  servoP1.attach(SERVO_1_PIN, 500, 2400);
-  servoP5.attach(SERVO_5_PIN, 500, 2400);
-  servoP10.attach(SERVO_10_PIN, 500, 2400);
-  servoP20.attach(SERVO_20_PIN, 500, 2400);
-
-  // Initialize to safe home positions (0°)
-  servoP1.write(SERVO_HOME);
-  servoP5.write(SERVO_HOME);
-  servoP10.write(SERVO_HOME);
-  servoP20.write(SERVO_HOME);
-
+  // Initialize 16x2 LCD via I2C (SDA: 21, SCL: 22)
   Wire.begin(21, 22);
   lcd.init();
   lcd.backlight();
   lcd.clear();
 
-  lcd.setCursor(0, 0);
-  lcd.print("SMARTCOIN GRP 4");
+  lcd.setCursor(3, 0);
+  lcd.print("SMARTCOIN");
   lcd.setCursor(0, 1);
   lcd.print("CONNECTING WIFI");
 
   Serial.println("\n==============================================");
-  Serial.println(" SMARTCOIN GRP 4 - (IR + 4 SERVO DISPENSER) ");
+  Serial.println(" SMARTCOIN GROUP 4 - COINSLOT TELEMETRY NODE  ");
   Serial.println("==============================================");
+  Serial.printf("[Coin Slot] Signal Pin: GPIO %d (Interrupt attached)\n", COIN_SLOT_PIN);
 
   connectWiFi();
 
   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("SYNCING VAULT...");
+  lcd.setCursor(3, 0);
+  lcd.print("SMARTCOIN");
   lcd.setCursor(0, 1);
-  lcd.print("FETCHING DB DATA");
+  lcd.print("SYNCING VAULT...");
 
   // Initial cloud sync: Load actual live coins & balance from Supabase
   syncWithSupabase(true);
 
   // Spawn asynchronous background FreeRTOS task on Core 0 for Cloud Sync
-  xTaskCreatePinnedToCore(cloudSyncTask,    // Task function
-                          "CloudSyncTask",  // Name of task
-                          8192,             // Stack size
-                          NULL,             // Parameter
-                          1,                // Priority
-                          &cloudTaskHandle, // Task handle
-                          0 // Pin to Core 0 (leaves Core 1 for sensor scanning)
+  xTaskCreatePinnedToCore(
+    cloudSyncTask,    // Task function
+    "CloudSyncTask",  // Name of task
+    8192,             // Stack size
+    NULL,             // Parameter
+    1,                // Priority
+    &cloudTaskHandle, // Task handle
+    0                 // Core 0 (Core 1 stays 100% responsive for coin pulse counting)
   );
 
-  lcd.clear();
-  showOverall();
+  // Show standard idle screen
+  showIdleScreen();
 }
 
 // ========================================================
-// 8. MAIN LOOP (Zero-Latency Scanning & Non-Blocking Servos)
+// 8. MAIN LOOP
 // ========================================================
 void loop() {
-  // Ensure WiFi reconnects if dropped
+  // 1. Serial Monitor diagnostic commands (1, 5, 10, 20, STATUS, HELP)
+  checkSerialCommands();
+
+  // 2. Ensure WiFi auto-reconnects if dropped
   if (WiFi.status() != WL_CONNECTED) {
     connectWiFi();
   }
 
-  // 1. High-speed non-blocking scan of all 4 IR sensors
-  scanCoinSensors();
+  // 3. Process accumulated pulses from Coin Slot
+  processCoinPulses();
 
-  // 2. Automated servo withdrawal state machine (0° -> 180° -> 0°)
-  runWithdrawSequence();
-
-  // 3. Poll for pending withdrawal commands only when idle & connected
-  unsigned long now = millis();
-  if (!withdrawCommandActive && WiFi.status() == WL_CONNECTED &&
-      (now - lastWithdrawPollAt >= WITHDRAW_POLL_INTERVAL_MS)) {
-    lastWithdrawPollAt = now;
-    long pendingCmdId = -1;
-    int pendingDenom = 0;
-    int pendingQty = 1;
-    if (fetchPendingWithdrawCommand(pendingCmdId, pendingDenom, pendingQty)) {
-      startWithdrawSequence(pendingCmdId, pendingDenom, pendingQty);
-    }
-  }
-
-  // 4. Restore main display after detection popup expires
+  // 4. Restore idle display after detection popup expires
   if (showingDetectedCoin && (millis() - detectedTime >= detectedDisplayTime)) {
     showingDetectedCoin = false;
-    showOverall();
-  }
-
-  // 5. Periodically sync database when not detecting coins or dispensing
-  if (!showingDetectedCoin && !withdrawCommandActive &&
-      (millis() - lastSyncTime >= syncInterval)) {
-    lastSyncTime = millis();
-    syncWithSupabase(false);
+    showIdleScreen();
   }
 }
 
 // ========================================================
-// 9. HIGH-SPEED SENSOR SCANNER (Prevents Retrigger Loops)
+// 9. COIN PULSE EVALUATION & DENOMINATION MAPPING
 // ========================================================
-void scanCoinSensors() {
+void processCoinPulses() {
   unsigned long now = millis();
 
-  for (int i = 0; i < 4; i++) {
-    int reading = digitalRead(sensors[i].pin);
+  // If pulses were detected and no new pulse arrived within timeout -> Coin finished!
+  if (pulseCount > 0 && (now - lastPulseTime >= COIN_PULSE_TIMEOUT_MS)) {
+    // Atomically read and reset pulse counter
+    noInterrupts();
+    int pulses = pulseCount;
+    pulseCount = 0;
+    interrupts();
 
-    // Detect beam cut (Transition from HIGH to LOW)
-    if (reading == LOW && sensors[i].lastState == HIGH) {
-      sensors[i].stateChangeTime = now;
-      sensors[i].lastState = LOW;
+    // Map Philippine Peso pulses:
+    // Standard Multi-coin selector (Allan 1240A / Universal):
+    // 1 pulse = ₱1, 5 pulses = ₱5, 10 pulses = ₱10, 20 pulses = ₱20
+    int denom = 0;
+    if (pulses == 1) {
+      denom = 1;
+    } else if (pulses == 5) {
+      denom = 5;
+    } else if (pulses == 10) {
+      denom = 10;
+    } else if (pulses == 20) {
+      denom = 20;
+    } else {
+      // Direct pulse-to-peso fallback
+      denom = pulses;
     }
-    // Validate pulse: Must stay LOW for at least 15ms (filters optical glitches)
-    else if (reading == LOW && sensors[i].lastState == LOW &&
-             !sensors[i].isBlocked) {
-      if (now - sensors[i].stateChangeTime >= 15) {
-        sensors[i].isBlocked = true; // Lock this sensor until beam is clear
 
-        int denom = sensors[i].denom;
-        if (denom == 1)
-          count1++;
-        else if (denom == 5)
-          count5++;
-        else if (denom == 10)
-          count10++;
-        else if (denom == 20)
-          count20++;
-        totalPesos += denom;
+    if (denom == 1)       count1++;
+    else if (denom == 5)  count5++;
+    else if (denom == 10) count10++;
+    else if (denom == 20) count20++;
+    totalPesos += denom;
 
-        // Instant LCD & Serial feedback
-        coinDetected(denom);
+    Serial.printf("\n>>> [COIN ACCEPTED] %d Pulses -> ₱%d COIN! <<<\n", pulses, denom);
 
-        // Send to background FreeRTOS queue for Supabase sync
-        xQueueSend(coinQueue, &denom, 0);
-      }
-    }
-    // Beam unblocked (Sensor returned to HIGH)
-    else if (reading == HIGH) {
-      if (sensors[i].lastState == LOW) {
-        sensors[i].lastState = HIGH;
-        sensors[i].stateChangeTime = now;
-      }
-      // Chute has been clear for at least 80ms -> unlock for next coin
-      else if (sensors[i].isBlocked &&
-               (now - sensors[i].stateChangeTime >= 80)) {
-        sensors[i].isBlocked = false;
-      }
-    }
+    // Show what coin was inserted on 16x2 LCD
+    coinDetected(denom);
+
+    // Queue for background Supabase upload on Core 0
+    xQueueSend(coinQueue, &denom, 0);
   }
 }
 
 // ========================================================
-// 10. AUTOMATED COIN DISPENSER (0° -> 180° -> 0° CONTROLLER)
+// 10. LCD DISPLAY HANDLERS
 // ========================================================
-Servo* getServoForDenom(int denom) {
-  if (denom == 1) return &servoP1;
-  if (denom == 5) return &servoP5;
-  if (denom == 10) return &servoP10;
-  if (denom == 20) return &servoP20;
-  return &servoP1;
-}
 
-void deductCoin(int denom) {
-  if (denom == 1) {
-    if (count1 > 0) count1--;
-  } else if (denom == 5) {
-    if (count5 > 0) count5--;
-  } else if (denom == 10) {
-    if (count10 > 0) count10--;
-  } else if (denom == 20) {
-    if (count20 > 0) count20--;
-  }
-  totalPesos = (count1 * 1) + (count5 * 5) + (count10 * 10) + (count20 * 20);
-}
-
-void runWithdrawSequence() {
-  if (!withdrawCommandActive) return;
-
-  unsigned long now = millis();
-  Servo *s = getServoForDenom(activeWithdrawDenom);
-
-  switch (dispenseStage) {
-    case ROTATE_180:
-      // Allow time for servo to reach 180°
-      if (now - dispenseStageStartedAt >= SERVO_TRAVEL_MS) {
-        dispenseStage = HOLD_AT_180;
-        dispenseStageStartedAt = now;
-        Serial.printf("[Dispenser] Servo at 180°. Holding for coin ₱%d to drop...\n", activeWithdrawDenom);
-      }
-      break;
-
-    case HOLD_AT_180:
-      // Hold at 180° for coin to clear cutout and drop into tray
-      if (now - dispenseStageStartedAt >= SERVO_HOLD_MS) {
-        s->write(SERVO_HOME); // Reset servo to 0°
-        dispenseStage = RETURN_TO_0;
-        dispenseStageStartedAt = now;
-
-        lcd.setCursor(0, 1);
-        lcd.print("SERVO -> 0 DEG  ");
-        Serial.println("[Dispenser] Returning servo to 0° (Home)...");
-      }
-      break;
-
-    case RETURN_TO_0:
-      // Allow time for servo to fully return to 0°
-      if (now - dispenseStageStartedAt >= SERVO_RETURN_MS) {
-        dispenseStage = COMPLETE_DISPENSE;
-      }
-      break;
-
-    case COMPLETE_DISPENSE: {
-      Serial.printf("[Dispenser] Dispense cycle complete for ₱%d (Cmd #%ld)\n",
-                    activeWithdrawDenom, activeWithdrawCommandId);
-
-      // 1. Mark command 'completed' in Supabase with retries
-      bool updated = false;
-      for (int attempt = 1; attempt <= 3 && !updated; attempt++) {
-        if (WiFi.status() != WL_CONNECTED) {
-          connectWiFi();
-        }
-        updated = updateWithdrawCommand(activeWithdrawCommandId, "completed");
-        if (!updated) {
-          Serial.printf("[Dispenser] Retrying completed status update (%d/3)...\n", attempt);
-          delay(300);
-        }
-      }
-
-      if (updated) {
-        Serial.println("[Dispenser] Supabase updated: completed.");
-      } else {
-        Serial.println("[Dispenser] Warning: Failed to update Supabase status after 3 attempts.");
-      }
-
-      // 2. Fetch the latest coin_container state from Supabase to stay 100% in sync
-      syncWithSupabase(false);
-
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("DISPENSED: P");
-      lcd.print(activeWithdrawDenom);
-      lcd.setCursor(0, 1);
-      lcd.print("BAL: P");
-      lcd.print(totalPesos);
-
-      withdrawCommandActive = false;
-      activeWithdrawCommandId = -1;
-      dispenseStage = DISPENSE_IDLE;
-
-      delay(1500);
-      showOverall();
-      break;
-    }
-
-    default:
-      break;
-  }
-}
-
-// ========================================================
-// 11. SUPABASE WITHDRAW API (CLAIM & UPDATE COMMANDS)
-// ========================================================
-bool fetchPendingWithdrawCommand(long &id, int &denom, int &qty) {
-  if (WiFi.status() != WL_CONNECTED) return false;
-
-  WiFiClientSecure client;
-  client.setInsecure();
-  client.setTimeout(2500);
-
-  HTTPClient http;
-  String url = String(SUPABASE_URL) +
-               "/rest/v1/withdraw_commands?select=id,denomination,quantity&status=eq.pending"
-               "&order=created_at.asc&limit=1";
-
-  http.begin(client, url);
-  http.addHeader("apikey", SUPABASE_KEY);
-  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-
-  int code = http.GET();
-  if (code != 200) {
-    http.end();
-    return false;
-  }
-
-  String response = http.getString();
-  http.end();
-
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, response);
-  if (err || !doc.is<JsonArray>() || doc.as<JsonArray>().size() == 0) {
-    return false;
-  }
-
-  id = doc[0]["id"].as<long>();
-  denom = doc[0]["denomination"].as<int>();
-  qty = doc[0]["quantity"].as<int>();
-  return (id > 0 && (denom == 1 || denom == 5 || denom == 10 || denom == 20));
-}
-
-bool updateWithdrawCommand(long id, const String &status) {
-  if (WiFi.status() != WL_CONNECTED) return false;
-
-  WiFiClientSecure client;
-  client.setInsecure();
-  client.setTimeout(3000);
-
-  HTTPClient http;
-  String url = String(SUPABASE_URL) + "/rest/v1/withdraw_commands?id=eq." + String(id);
-
-  http.begin(client, url);
-  http.addHeader("apikey", SUPABASE_KEY);
-  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("Prefer", "return=minimal");
-
-  JsonDocument doc;
-  doc["status"] = status;
-
-  String body;
-  serializeJson(doc, body);
-
-  http.addHeader("Content-Length", String(body.length()));
-
-  int code = http.PATCH(body);
-  http.end();
-
-  if (code < 200 || code >= 300) {
-    Serial.printf("[Dispenser] Status update failed: HTTP %d\n", code);
-    return false;
-  }
-
-  return true;
-}
-
-void startWithdrawSequence(long id, int denom, int qty) {
-  Serial.printf("\n>>> [WITHDRAW INITIATED] Claiming Command #%ld for ₱%d <<<\n", id, denom);
-
-  // Claim command first: mark 'running' in Supabase before moving hardware
-  if (!updateWithdrawCommand(id, "running")) {
-    Serial.println("[Dispenser] Could not mark command as running. Skipping.");
-    return;
-  }
-
-  activeWithdrawCommandId = id;
-  activeWithdrawDenom = denom;
-  activeWithdrawQty = (qty > 0) ? qty : 1;
-  withdrawCommandActive = true;
-
+// Idle screen: Exactly "SMARTCOIN" and "Insert your coin" (No money totals displayed)
+void showIdleScreen() {
   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("WITHDRAW: P");
-  lcd.print(denom);
+  lcd.setCursor(3, 0);
+  lcd.print("SMARTCOIN");
   lcd.setCursor(0, 1);
-  lcd.print("SERVO 180 DEG...");
-
-  // Rotate dedicated servo from 0° -> 180°
-  Servo *s = getServoForDenom(denom);
-  s->write(SERVO_DISPENSE);
-
-  dispenseStage = ROTATE_180;
-  dispenseStageStartedAt = millis();
-  Serial.printf("[Dispenser] Servo for ₱%d commanded to 180°\n", denom);
+  lcd.print("Insert your coin");
 }
 
-void pushWithdrawalToSupabase(int denomination) {
-  if (WiFi.status() != WL_CONNECTED) return;
-
-  WiFiClientSecure client;
-  client.setInsecure();
-  client.setTimeout(2500);
-
-  HTTPClient http;
-
-  int c1 = count1;
-  int c5 = count5;
-  int c10 = count10;
-  int c20 = count20;
-  int tot = totalPesos;
-
-  // 1. UPDATE coin_container (Live Container Table)
-  String urlContainer = String(SUPABASE_URL) + "/rest/v1/coin_container?id=eq.1";
-  http.begin(client, urlContainer);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("apikey", SUPABASE_KEY);
-  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-  http.addHeader("Prefer", "return=minimal");
-
-  String containerPayload = "{"
-                            "\"count_1\":" + String(c1) + ","
-                            "\"count_5\":" + String(c5) + ","
-                            "\"count_10\":" + String(c10) + ","
-                            "\"count_20\":" + String(c20) + ","
-                            "\"total_pesos\":" + String(tot) + ","
-                            "\"last_action\":\"WITHDRAW_P" + String(denomination) + "\","
-                            "\"updated_at\":\"now()\""
-                            "}";
-
-  int patchCode = http.PATCH(containerPayload);
-  if (patchCode > 0) {
-    Serial.printf("[Supabase] Container updated after withdrawal (HTTP %d)\n", patchCode);
-  }
-  http.end();
-
-  // 2. INSERT into coin_logs (Audit History Table)
-  String urlLogs = String(SUPABASE_URL) + "/rest/v1/coin_logs";
-  http.begin(client, urlLogs);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("apikey", SUPABASE_KEY);
-  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
-  http.addHeader("Prefer", "return=minimal");
-
-  String logPayload = "{"
-                      "\"event_type\":\"WITHDRAWAL\","
-                      "\"denomination\":" + String(denomination) + ","
-                      "\"amount\":" + String(denomination) + ","
-                      "\"count_1\":" + String(c1) + ","
-                      "\"count_5\":" + String(c5) + ","
-                      "\"count_10\":" + String(c10) + ","
-                      "\"count_20\":" + String(c20) + ","
-                      "\"total_pesos\":" + String(tot) + ","
-                      "\"notes\":\"Automated servo dispense (0->180->0 deg)\""
-                      "}";
-
-  int postCode = http.POST(logPayload);
-  if (postCode > 0) {
-    Serial.printf("[Supabase] Withdrawal log created (HTTP %d)\n", postCode);
-  }
-  http.end();
-}
-
-// ========================================================
-// 12. ASYNCHRONOUS FREE-RTOS CLOUD SYNC TASK (Core 0)
-// ========================================================
-void cloudSyncTask(void *pvParameters) {
-  int receivedDenom = 0;
-  for (;;) {
-    // Wait for coin event from scanner
-    if (xQueueReceive(coinQueue, &receivedDenom, portMAX_DELAY) == pdTRUE) {
-      // Non-blocking push to Supabase Cloud in background
-      pushCoinToSupabase(receivedDenom);
-    }
-  }
-}
-
-// ========================================================
-// 13. COIN DETECTED UI HANDLER
-// ========================================================
+// Shows what coin was inserted inside the machine
 void coinDetected(int denomination) {
   showingDetectedCoin = true;
   detectedTime = millis();
 
   lcd.clear();
-  lcd.setCursor(0, 0);
+  lcd.setCursor(1, 0);
+  lcd.print("COIN INSERTED:");
 
-  int currentDenomCount = 0;
+  lcd.setCursor(2, 1);
   if (denomination == 1) {
-    lcd.print("1 PESO DETECTED");
-    currentDenomCount = count1;
+    lcd.print("1 PESO COIN");
   } else if (denomination == 5) {
-    lcd.print("5 PESO DETECTED");
-    currentDenomCount = count5;
+    lcd.print("5 PESOS COIN");
   } else if (denomination == 10) {
-    lcd.print("10 PESO DETECTED");
-    currentDenomCount = count10;
+    lcd.print("10 PESOS COIN");
   } else if (denomination == 20) {
-    lcd.print("20 PESO DETECTED");
-    currentDenomCount = count20;
+    lcd.print("20 PESOS COIN");
+  } else {
+    lcd.print(String(denomination) + " PESO COIN");
   }
 
-  lcd.setCursor(0, 1);
-  lcd.print("COUNT: ");
-  lcd.print(currentDenomCount);
-  lcd.print(" | P");
-  lcd.print(totalPesos);
-
-  Serial.println("\n>>> [FAST IR DETECTED] <<<");
-  Serial.printf("Coin: P%d | Total: P%d | 1x[%d] 5x[%d] 10x[%d] 20x[%d]\n",
+  Serial.println("\n>>> [LCD NOTIFIED] <<<");
+  Serial.printf("Coin: ₱%d | Vault: ₱%d | Breakdown: 1x[%d] 5x[%d] 10x[%d] 20x[%d]\n",
                 denomination, totalPesos, count1, count5, count10, count20);
 }
 
 // ========================================================
-// 14. SHOW OVERALL TOTAL LCD
+// 11. ASYNCHRONOUS FREE-RTOS CLOUD SYNC TASK (Core 0)
 // ========================================================
-void showOverall() {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("OVERALL TOTAL");
-  lcd.setCursor(0, 1);
-  lcd.print("TOTAL: P");
-  lcd.print(totalPesos);
+void cloudSyncTask(void *pvParameters) {
+  int receivedDenom = 0;
+  Serial.println("[CloudSyncTask] Core 0 Background Network Task Active");
+
+  for (;;) {
+    // 1. Process coin deposit queue (waits up to 1000ms for coin event)
+    if (xQueueReceive(coinQueue, &receivedDenom, pdMS_TO_TICKS(1000)) == pdTRUE) {
+      Serial.printf("[CloudSyncTask] Queue received coin: ₱%d. Uploading to Supabase...\n", receivedDenom);
+      pushCoinToSupabase(receivedDenom);
+    }
+
+    // 2. Periodic cloud sync to check if web admin reset the vault to 0
+    unsigned long now = millis();
+    if (!showingDetectedCoin && (now - lastSyncTime >= syncInterval)) {
+      lastSyncTime = now;
+      syncWithSupabase(false);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
 }
 
 // ========================================================
-// 15. SUPABASE CLOUD SYNC (DEPOSIT)
+// 12. SUPABASE CLOUD SYNC (DEPOSIT TO DATABASE)
 // ========================================================
 void pushCoinToSupabase(int denomination) {
   if (WiFi.status() != WL_CONNECTED) {
@@ -646,9 +282,11 @@ void pushCoinToSupabase(int denomination) {
     return;
   }
 
+  Serial.printf("[Supabase] Uploading ₱%d deposit to Supabase...\n", denomination);
+
   WiFiClientSecure client;
   client.setInsecure(); // Fast HTTPS without certificate verification overhead
-  client.setTimeout(2500); // 2.5s quick timeout
+  client.setTimeout(3500); // 3.5s timeout
 
   HTTPClient http;
 
@@ -677,12 +315,14 @@ void pushCoinToSupabase(int denomination) {
                             "\"updated_at\":\"now()\""
                             "}";
 
-  int patchCode = http.PATCH(containerPayload);
-  if (patchCode > 0) {
+  int patchCode = http.sendRequest("PATCH", (uint8_t*)containerPayload.c_str(), containerPayload.length());
+  if (patchCode == 200 || patchCode == 204) {
+    Serial.printf("[Supabase] Container updated successfully (HTTP %d)\n", patchCode);
+  } else if (patchCode > 0) {
     Serial.printf("[Supabase] Container updated (HTTP %d)\n", patchCode);
   } else {
-    Serial.printf("[Supabase] Container update failed: %s\n",
-                  http.errorToString(patchCode).c_str());
+    Serial.printf("[Supabase] Container update failed: %s (code %d)\n",
+                  http.errorToString(patchCode).c_str(), patchCode);
   }
   http.end();
 
@@ -703,15 +343,17 @@ void pushCoinToSupabase(int denomination) {
                       "\"count_10\":" + String(c10) + ","
                       "\"count_20\":" + String(c20) + ","
                       "\"total_pesos\":" + String(tot) + ","
-                      "\"notes\":\"Coin inserted at ESP32 node\""
+                      "\"notes\":\"Coin inserted at ESP32 coin slot\""
                       "}";
 
   int postCode = http.POST(logPayload);
-  if (postCode > 0) {
-    Serial.printf("[Supabase] Log created (HTTP %d)\n", postCode);
+  if (postCode == 200 || postCode == 201) {
+    Serial.printf("[Supabase] Coin deposit log created (HTTP %d)\n", postCode);
+  } else if (postCode > 0) {
+    Serial.printf("[Supabase] Coin deposit log status: HTTP %d\n", postCode);
   } else {
-    Serial.printf("[Supabase] Log insert failed: %s\n",
-                  http.errorToString(postCode).c_str());
+    Serial.printf("[Supabase] Log insert failed: %s (code %d)\n",
+                  http.errorToString(postCode).c_str(), postCode);
   }
   http.end();
 }
@@ -719,23 +361,20 @@ void pushCoinToSupabase(int denomination) {
 // Helper to extract integer value from simple JSON string
 int extractJsonInt(const String &json, const String &key) {
   int keyIndex = json.indexOf("\"" + key + "\":");
-  if (keyIndex == -1)
-    return -1;
+  if (keyIndex == -1) return -1;
   int valStart = keyIndex + key.length() + 3;
   int valEnd = valStart;
-  while (valEnd < json.length() &&
-         (isDigit(json[valEnd]) || json[valEnd] == '-')) {
+  while (valEnd < json.length() && (isDigit(json[valEnd]) || json[valEnd] == '-')) {
     valEnd++;
   }
   return json.substring(valStart, valEnd).toInt();
 }
 
 // ========================================================
-// 16. FULL DATABASE & LCD SYNCHRONIZATION
+// 13. FULL DATABASE SYNCHRONIZATION (Handles Web Resets)
 // ========================================================
 void syncWithSupabase(bool onBoot) {
-  if (WiFi.status() != WL_CONNECTED)
-    return;
+  if (WiFi.status() != WL_CONNECTED) return;
 
   WiFiClientSecure client;
   client.setInsecure();
@@ -743,9 +382,7 @@ void syncWithSupabase(bool onBoot) {
 
   HTTPClient http;
   String url = String(SUPABASE_URL) +
-               "/rest/v1/"
-               "coin_container?id=eq.1&select=count_1,count_5,"
-               "count_10,count_20,total_pesos,last_action";
+               "/rest/v1/coin_container?id=eq.1&select=count_1,count_5,count_10,count_20,total_pesos,last_action";
 
   http.begin(client, url);
   http.addHeader("apikey", SUPABASE_KEY);
@@ -762,9 +399,8 @@ void syncWithSupabase(bool onBoot) {
     int remoteTotal = extractJsonInt(response, "total_pesos");
 
     if (remoteTotal != -1) {
-      bool valuesChanged =
-          (remoteTotal != totalPesos || remote1 != count1 ||
-           remote5 != count5 || remote10 != count10 || remote20 != count20);
+      bool valuesChanged = (remoteTotal != totalPesos || remote1 != count1 ||
+                            remote5 != count5 || remote10 != count10 || remote20 != count20);
 
       if (valuesChanged || onBoot) {
         count1 = (remote1 >= 0) ? remote1 : 0;
@@ -773,21 +409,19 @@ void syncWithSupabase(bool onBoot) {
         count20 = (remote20 >= 0) ? remote20 : 0;
         totalPesos = remoteTotal;
 
-        Serial.printf("\n[SYNC] Matched with Web Supabase! Total: P%d | 1x[%d] "
-                      "5x[%d] 10x[%d] 20x[%d]\n",
+        Serial.printf("\n[SYNC] Updated from Supabase! Total: ₱%d | 1x[%d] 5x[%d] 10x[%d] 20x[%d]\n",
                       totalPesos, count1, count5, count10, count20);
 
-        if (response.indexOf("WITHDRAWAL") != -1 && !onBoot) {
+        // If the web admin reset the vault to 0, show brief notification
+        if (response.indexOf("VAULT_MANUALLY_EMPTIED") != -1 && !onBoot) {
           lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print("WITHDRAWN (APP)");
-          lcd.setCursor(0, 1);
-          lcd.print("BAL: P");
-          lcd.print(totalPesos);
-          delay(1500);
+          lcd.setCursor(3, 0);
+          lcd.print("SMARTCOIN");
+          lcd.setCursor(1, 1);
+          lcd.print("VAULT RESET: 0");
+          delay(1200);
+          showIdleScreen();
         }
-
-        showOverall();
       }
     }
   }
@@ -795,11 +429,10 @@ void syncWithSupabase(bool onBoot) {
 }
 
 // ========================================================
-// 17. WIFI CONNECTION HELPER
+// 14. WIFI CONNECTION HELPER
 // ========================================================
 void connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED)
-    return;
+  if (WiFi.status() == WL_CONNECTED) return;
 
   Serial.printf("Connecting to WiFi '%s'...", WIFI_SSID);
   WiFi.mode(WIFI_STA);
@@ -817,7 +450,53 @@ void connectWiFi() {
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println(
-        "\nWiFi Connection Failed. Running in offline fallback mode.");
+    Serial.println("\nWiFi Connection Failed. Running in offline counting mode.");
+  }
+}
+
+// ========================================================
+// 15. SERIAL MONITOR DIAGNOSTIC COMMANDS
+// ========================================================
+void checkSerialCommands() {
+  if (Serial.available() > 0) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    input.toUpperCase();
+    if (input.length() == 0) return;
+
+    if (input == "1" || input == "C1") {
+      Serial.println("[Serial Test] Simulating ₱1 coin (1 pulse)...");
+      noInterrupts();
+      pulseCount = 1;
+      lastPulseTime = millis();
+      interrupts();
+    } else if (input == "5" || input == "C5") {
+      Serial.println("[Serial Test] Simulating ₱5 coin (5 pulses)...");
+      noInterrupts();
+      pulseCount = 5;
+      lastPulseTime = millis();
+      interrupts();
+    } else if (input == "10" || input == "C10") {
+      Serial.println("[Serial Test] Simulating ₱10 coin (10 pulses)...");
+      noInterrupts();
+      pulseCount = 10;
+      lastPulseTime = millis();
+      interrupts();
+    } else if (input == "20" || input == "C20") {
+      Serial.println("[Serial Test] Simulating ₱20 coin (20 pulses)...");
+      noInterrupts();
+      pulseCount = 20;
+      lastPulseTime = millis();
+      interrupts();
+    } else if (input == "STATUS") {
+      Serial.printf("\n--- SMARTCOIN STATUS ---\nTotal: ₱%d | ₱1: %d | ₱5: %d | ₱10: %d | ₱20: %d\nWiFi: %s\n\n",
+                    totalPesos, count1, count5, count10, count20,
+                    (WiFi.status() == WL_CONNECTED) ? "CONNECTED" : "DISCONNECTED");
+    } else if (input == "HELP" || input == "?") {
+      Serial.println("\n--- SMARTCOIN ESP32 SERIAL COMMANDS ---");
+      Serial.println("1 / 5 / 10 / 20 : Simulate coin pulses (tests LCD & Supabase Upload)");
+      Serial.println("STATUS          : View current coin counts and WiFi status");
+      Serial.println("----------------------------------------\n");
+    }
   }
 }
