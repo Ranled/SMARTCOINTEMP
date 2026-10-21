@@ -42,7 +42,7 @@
     </header>
     <main class="main">
         <section class="connection" aria-labelledby="connection-status">
-            <h1 id="connection-status" role="status">DISCONNECTED</h1>
+            <h1 id="connection-status" role="status">LOADING CONNECTION...</h1>
             <p class="device">MAC: 66:78:94:C8:9D:C6 <span class="separator">|</span> IP: 10.0.4.142</p>
             <p class="balance">COINS: ₱ <span id="coins">0</span> | POINTS: <span id="points">0</span></p>
             <div id="session" class="session" hidden>
@@ -56,15 +56,14 @@
             <button class="button secondary" id="wifi-rates" type="button">WIFI RATES</button>
             <form id="voucher-form" class="voucher-form" novalidate>
                 <label class="sr-only" for="voucher">Voucher code</label>
-                <input id="voucher" name="voucher" placeholder="Voucher Here.." autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" aria-describedby="voucher-help message">
+                <input id="voucher" name="voucher" placeholder="Voucher Here.." autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" aria-describedby="message">
                 <button type="submit">SUBMIT</button>
             </form>
             <p id="message" class="message" role="status" aria-live="polite"></p>
-            <p id="voucher-help" class="demo-codes">Try a demo voucher: <button type="button" class="code-button" data-voucher="PISO30">PISO30</button> or <button type="button" class="code-button" data-voucher="WIFI60">WIFI60</button></p>
         </div>
-        <aside class="demo-note"><span class="demo-dot" aria-hidden="true"></span> FRONTEND PORTAL <p>Realtime coin counting, connection timer & captive portal.<br>Admin vault monitor available via the top Admin button.</p></aside>
+        <aside class="demo-note"><span class="demo-dot" aria-hidden="true"></span> FRONTEND PORTAL <p>Realtime coin counting, connection timer &amp; captive portal.<br>Admin vault monitor available via the top Admin button.</p></aside>
         <button id="reset" class="text-button reset" type="button">Reset session</button>
-        <noscript><p class="noscript">Enable JavaScript to try the coin, timer and voucher simulations.</p></noscript>
+        <noscript><p class="noscript">Enable JavaScript to use the PisoWiFi portal.</p></noscript>
     </main>
     <footer>
         <p><strong>Powered by: <span>PisoWiFi</span></strong> · 2026</p>
@@ -82,8 +81,16 @@
         <span class="slot-pulse-dot"></span>
         <div class="slot-status-text">
             <strong>COIN SLOT ACTIVE &amp; LISTENING</strong>
-            <p id="coin-description">Drop ₱1, ₱5, ₱10, or ₱20 coins into the machine now.</p>
+            <p id="coin-description">Drop ₱1 (5 mins), ₱5 (30 mins), ₱10 (1 hour), or ₱20 (3 hours) coins into the slot.</p>
         </div>
+    </div>
+
+    <!-- Non-clickable WiFi Time Rates Reference -->
+    <div class="coin-options" style="margin-bottom: 14px; text-align: center;" aria-label="WiFi Time Rates">
+        <div class="coin" style="pointer-events: none;"><span>₱1</span><small>5 mins</small></div>
+        <div class="coin" style="pointer-events: none;"><span>₱5</span><small>30 mins</small></div>
+        <div class="coin" style="pointer-events: none;"><span>₱10</span><small>1 hour</small></div>
+        <div class="coin" style="pointer-events: none;"><span>₱20</span><small>3 hours</small></div>
     </div>
 
     <!-- Countdown Timer Row -->
@@ -102,17 +109,6 @@
 
     <button id="connect" class="button primary dialog-action" type="button" disabled>START SESSION</button>
     <button type="button" class="text-button cancel" data-close>Cancel</button>
-
-    <!-- Fallback / Simulated Coin Buttons -->
-    <div style="margin-top: 18px; border-top: 1px solid #ffffff18; padding-top: 12px;">
-        <p class="small-note" style="margin: 0 0 10px; color: #9bb0b6;">Or click a coin below to test/simulate:</p>
-        <div class="coin-options">
-            <button type="button" class="coin" data-pesos="1" aria-label="Add 1 peso coin"><span>₱1</span><small>5 min</small></button>
-            <button type="button" class="coin" data-pesos="5" aria-label="Add 5 peso coin"><span>₱5</span><small>30 min</small></button>
-            <button type="button" class="coin" data-pesos="10" aria-label="Add 10 peso coin"><span>₱10</span><small>1 hour</small></button>
-            <button type="button" class="coin" data-pesos="20" aria-label="Add 20 peso coin"><span>₱20</span><small>3 hours</small></button>
-        </div>
-    </div>
 </dialog>
 
 <!-- WiFi Rates Dialog -->
@@ -130,7 +126,7 @@
             <tr><td>₱20</td><td>3 hours</td></tr>
         </tbody>
     </table>
-    <p class="small-note">Coins add up. Pause your timer and resume any time.<br>Demo vouchers: PISO30 (30 min) · WIFI60 (1 hour).</p>
+    <p class="small-note">Coins add up. Pause your timer and resume any time.</p>
     <button class="button primary dialog-action" type="button" data-close>GOT IT</button>
 </dialog>
 
@@ -146,16 +142,15 @@
 <dialog id="admin-dialog" aria-labelledby="admin-title">
     <div class="dialog-heading"><span class="eyebrow">RESTRICTED ACCESS</span><button class="close" type="button" data-close aria-label="Close admin login">×</button></div>
     <h2 id="admin-title">Admin Login</h2>
-    <p class="dialog-copy">Enter administrator PIN code to access the SmartCoin Vault Monitor & Transaction Logs.</p>
+    <p class="dialog-copy">Enter administrator PIN code to access the SmartCoin Vault Monitor &amp; Transaction Logs.</p>
     <form id="admin-form" novalidate>
         <div style="margin-bottom: 14px;">
             <label class="sr-only" for="admin-pin">Admin PIN code</label>
-            <input type="password" id="admin-pin" placeholder="Enter PIN (Default: 1234)" autocomplete="current-password" maxlength="20" style="width: 100%; padding: 14px 18px; border-radius: 14px; border: 1.5px solid #71878e; background: #263339; color: #fff; text-align: center; font-size: 20px; letter-spacing: 5px; outline: none;">
+            <input type="password" id="admin-pin" placeholder="Enter PIN" autocomplete="current-password" maxlength="20" style="width: 100%; padding: 14px 18px; border-radius: 14px; border: 1.5px solid #71878e; background: #263339; color: #fff; text-align: center; font-size: 20px; letter-spacing: 5px; outline: none;">
         </div>
         <p id="admin-error" class="message error" style="margin: 6px 0 14px; display: none;"></p>
         <button id="admin-submit-btn" class="button primary dialog-action" type="submit">ENTER SYSTEM</button>
         <button type="button" class="text-button cancel" data-close>Cancel</button>
-        <p class="small-note">Default PIN: <code>1234</code> or <code>admin</code></p>
     </form>
 </dialog>
 

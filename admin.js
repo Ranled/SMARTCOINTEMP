@@ -274,10 +274,23 @@ function updateContainerUI(data) {
   subtotal10El.textContent = `₱${sub10.toLocaleString()}`;
   subtotal20El.textContent = `₱${sub20.toLocaleString()}`;
 
-  progress1.textContent = `₱${sub1.toLocaleString()}`;
-  progress5.textContent = `₱${sub5.toLocaleString()}`;
-  progress10.textContent = `₱${sub10.toLocaleString()}`;
-  progress20.textContent = `₱${sub20.toLocaleString()}`;
+  const mins1 = count1 * 5;
+  const mins5 = count5 * 30;
+  const mins10 = count10 * 60;
+  const mins20 = count20 * 180;
+  const totalMins = mins1 + mins5 + mins10 + mins20;
+
+  progress1.textContent = `₱${sub1.toLocaleString()} (${mins1} mins)`;
+  progress5.textContent = `₱${sub5.toLocaleString()} (${mins5} mins)`;
+  progress10.textContent = `₱${sub10.toLocaleString()} (${count10} hr${count10 === 1 ? '' : 's'} / ${mins10}m)`;
+  progress20.textContent = `₱${sub20.toLocaleString()} (${count20 * 3} hrs / ${mins20}m)`;
+
+  const containerStateEl = document.getElementById('containerState');
+  if (containerStateEl) {
+    containerStateEl.textContent = totalMins >= 60
+      ? `${Math.floor(totalMins / 60)}H ${totalMins % 60}M (${totalMins} MINS)`
+      : `${totalMins} MINS`;
+  }
 
   // Share % of total vault
   const share1 = totalAmount > 0 ? Math.round((sub1 / totalAmount) * 100) : 0;
@@ -305,7 +318,10 @@ function updateContainerUI(data) {
 // 6. Render Transaction Logs Table
 function formatLogDenomination(log) {
   if (log.event_type === 'DEPOSIT') {
-    return `<span class="badge-coin-tag">₱${log.denomination || log.amount}.00 Coin</span>`;
+    const d = Number(log.denomination || log.amount);
+    const timeMap = { 1: '+5 mins', 5: '+30 mins', 10: '+1 hr', 20: '+3 hrs' };
+    const timeTag = timeMap[d] || `+${d * 5} mins`;
+    return `<span class="badge-coin-tag">₱${d}.00 Coin (${timeTag})</span>`;
   }
 
   // Check for collection / withdrawal breakdown
@@ -387,21 +403,24 @@ function openResetModal() {
   const total = c.total_pesos || ((c.count_1 || 0) * 1 + (c.count_5 || 0) * 5 + (c.count_10 || 0) * 10 + (c.count_20 || 0) * 20);
   const totalCoins = (c.count_1 || 0) + (c.count_5 || 0) + (c.count_10 || 0) + (c.count_20 || 0);
 
-  if (total === 0 && totalCoins === 0) {
-    showToast('Vault is already empty (₱0). No cash to collect.');
-    return;
+  const totalMins = ((c.count_1 || 0) * 5) + ((c.count_5 || 0) * 30) + ((c.count_10 || 0) * 60) + ((c.count_20 || 0) * 180);
+  const resetTimeEl = document.getElementById('resetTimeText');
+  if (resetTimeEl) {
+    resetTimeEl.textContent = totalMins >= 60
+      ? `${totalMins} mins (${Math.floor(totalMins / 60)}h ${totalMins % 60}m)`
+      : `${totalMins} mins`;
   }
 
   resetAmountText.textContent = `₱${total.toLocaleString()}`;
   resetCoinsText.textContent = `${totalCoins.toLocaleString()} pcs`;
-  resetBreakdownText.textContent = `₱1: ${c.count_1 || 0} | ₱5: ${c.count_5 || 0} | ₱10: ${c.count_10 || 0} | ₱20: ${c.count_20 || 0}`;
+  resetBreakdownText.textContent = `₱1: ${c.count_1 || 0} (5m) | ₱5: ${c.count_5 || 0} (30m) | ₱10: ${c.count_10 || 0} (1h) | ₱20: ${c.count_20 || 0} (3h)`;
   resetNotesInput.value = '';
 
-  resetModal.classList.add('open');
+  resetModal.classList.add('active', 'open');
 }
 
 function closeResetModal() {
-  resetModal.classList.remove('open');
+  resetModal.classList.remove('active', 'open');
 }
 
 async function executeVaultReset() {
@@ -412,19 +431,13 @@ async function executeVaultReset() {
 
   const c = currentContainer;
   const withdrawAmount = c.total_pesos || ((c.count_1 || 0) * 1 + (c.count_5 || 0) * 5 + (c.count_10 || 0) * 10 + (c.count_20 || 0) * 20);
-  const totalCoins = (c.count_1 || 0) + (c.count_5 || 0) + (c.count_10 || 0) + (c.count_20 || 0);
-
-  if (withdrawAmount === 0 && totalCoins === 0) {
-    showToast('Vault is already empty.');
-    closeResetModal();
-    return;
-  }
 
   confirmResetActionBtn.disabled = true;
   confirmResetActionBtn.textContent = 'RESETTING & RECORDING...';
 
   const userNotes = resetNotesInput.value.trim() || 'Admin manual physical coin collection & vault counter reset';
   const fullNotes = `${userNotes} [Cleared: 1x${c.count_1 || 0}, 5x${c.count_5 || 0}, 10x${c.count_10 || 0}, 20x${c.count_20 || 0}]`;
+  const nowIso = new Date().toISOString();
 
   try {
     // 1. Record permanent log into coin_logs
@@ -444,22 +457,25 @@ async function executeVaultReset() {
 
     if (logError) throw logError;
 
-    // 2. Reset active coin_container counter to 0
+    // 2. Reset active coin_container counter to 0 (upsert ensures row 1 exists)
+    const resetPayload = {
+      id: 1,
+      count_1: 0,
+      count_5: 0,
+      count_10: 0,
+      count_20: 0,
+      total_pesos: 0,
+      last_action: 'VAULT_MANUALLY_EMPTIED',
+      updated_at: nowIso
+    };
+
     const { error: containerError } = await supabaseClient
       .from('coin_container')
-      .update({
-        count_1: 0,
-        count_5: 0,
-        count_10: 0,
-        count_20: 0,
-        total_pesos: 0,
-        last_action: 'VAULT_MANUALLY_EMPTIED',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', 1);
+      .upsert(resetPayload, { onConflict: 'id' });
 
     if (containerError) throw containerError;
 
+    updateContainerUI(resetPayload);
     showToast(`Vault counter reset to ₱0! Recorded collection of ₱${withdrawAmount.toLocaleString()}.`);
     closeResetModal();
     fetchContainerData();
@@ -472,7 +488,6 @@ async function executeVaultReset() {
     confirmResetActionBtn.textContent = 'YES, RESET STATUS TO ₱0';
   }
 }
-
 // 8. Filter Buttons
 filterBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -484,8 +499,8 @@ filterBtns.forEach(btn => {
 });
 
 // 9. Config Modal Logic
-function openConfigModal() { configModal.classList.add('open'); }
-function closeConfigModal() { configModal.classList.remove('open'); }
+function openConfigModal() { configModal.classList.add('active', 'open'); }
+function closeConfigModal() { configModal.classList.remove('active', 'open'); }
 
 configBtn.addEventListener('click', openConfigModal);
 closeConfigBtn.addEventListener('click', closeConfigModal);

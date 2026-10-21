@@ -541,7 +541,10 @@ window.quickWithdrawDenom = function(denom) {
 // 6. Render Logs Table with Precise Denominations & Clean Formatting
 function formatLogDenomination(log) {
   if (log.event_type === 'DEPOSIT') {
-    return `<span class="badge-coin-tag">₱${log.denomination || log.amount}.00 Coin</span>`;
+    const d = Number(log.denomination || log.amount);
+    const timeMap = { 1: '+5 mins', 5: '+30 mins', 10: '+1 hr', 20: '+3 hrs' };
+    const timeTag = timeMap[d] || `+${d * 5} mins`;
+    return `<span class="badge-coin-tag">₱${d}.00 Coin (${timeTag})</span>`;
   }
 
   // For WITHDRAWAL: parse exact coins disbursed from notes or denomination

@@ -57,7 +57,7 @@
     function render() {
         const seconds = secondsLeft();
         const running = state.deadline !== null && seconds > 0;
-        const status = seconds ? (running ? 'CONNECTED' : 'PAUSED') : 'DISCONNECTED';
+        const status = seconds ? (running ? 'CONNECTED' : 'PAUSED') : 'LOADING CONNECTION...';
 
         const connStatusEl = $('connection-status');
         if (connStatusEl) {
@@ -212,15 +212,21 @@
         slotCountdown = 60;
         updateSlotTimerDisplay();
 
-        // Flash visual notification banner inside dialog
+        // Flash visual notification banner inside dialog with coin amount, WiFi time & timestamp
+        const coinTimeStr = (log.created_at ? new Date(log.created_at) : new Date()).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
         const alertEl = $('coin-alert');
         if (alertEl) {
-            alertEl.textContent = `🪙 ₱${denom} Coin Accepted! (+${mins} minutes added)`;
+            alertEl.textContent = `🪙 ₱${denom} Coin Entered! (+${mins} mins · ${coinTimeStr})`;
             alertEl.style.display = 'block';
             alertEl.classList.remove('coin-flash');
             void alertEl.offsetWidth;
             alertEl.classList.add('coin-flash');
         }
+        announce(`🪙 ₱${denom} coin detected at ${coinTimeStr} (+${mins} mins). Total queued: ₱${pendingCoins} (${pendingMinutes} mins).`);
 
         console.log(`[PisoWiFi Realtime] Received ₱${denom} coin. Total pending: ₱${pendingCoins} (${pendingMinutes} mins)`);
     }
@@ -344,7 +350,7 @@
         const code = voucherInput.value.trim().toUpperCase();
         let error = '';
         if (!code) error = 'Enter a voucher code first.';
-        else if (!Object.prototype.hasOwnProperty.call(config.vouchers, code)) error = 'Voucher not found. Try PISO30 or WIFI60.';
+        else if (!Object.prototype.hasOwnProperty.call(config.vouchers, code)) error = 'Invalid voucher code.';
         else if (state.used.includes(code)) error = 'This voucher has already been used.';
 
         if (error) {
@@ -401,7 +407,7 @@
             window.location.href = '../admin.html';
         } else {
             if (adminErr) {
-                adminErr.textContent = 'Incorrect PIN code. Default is 1234.';
+                adminErr.textContent = 'Incorrect PIN code.';
                 adminErr.style.display = 'block';
             }
             $('admin-pin')?.focus();

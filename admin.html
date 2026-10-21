@@ -27,7 +27,7 @@
       <div class="nav-actions">
         <div class="sync-indicator" id="syncStatus">
           <span class="dot"></span>
-          <span class="sync-text">DISCONNECTED</span>
+          <span class="sync-text">LOADING CONNECTION...</span>
         </div>
         <button id="configBtn" class="btn btn-outline btn-sm" title="Configure Supabase API Keys">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -69,8 +69,8 @@
               <span class="metric-val highlight-white" id="totalCoinsCount">0 PCS</span>
             </div>
             <div class="metric-card">
-              <span class="metric-label">CONTAINER STATE</span>
-              <span class="metric-val highlight-green" id="containerState">READY & ONLINE</span>
+              <span class="metric-label">TOTAL WIFI TIME CREDITED</span>
+              <span class="metric-val highlight-green" id="containerState">0 MINS</span>
             </div>
           </div>
           
@@ -91,7 +91,7 @@
 
       <!-- Section Title for Denomination Breakdown -->
       <div class="section-divider-title">
-        <span>DENOMINATION BREAKDOWN (LIVE COINS COUNT)</span>
+        <span>DENOMINATION BREAKDOWN &amp; WIFI TIME RATES (₱1 = 5M · ₱5 = 30M · ₱10 = 1HR · ₱20 = 3HRS)</span>
       </div>
 
       <!-- Denomination Breakdown Grid -->
@@ -101,7 +101,7 @@
           <div class="coin-header">
             <div class="coin-badge-container">
               <span class="coin-badge">₱1</span>
-              <span class="coin-name-tag">ONE PESO</span>
+              <span class="coin-name-tag">ONE PESO · 5 MINS</span>
             </div>
             <div class="coin-status-badge" id="shareBadge1">0% OF VAULT</div>
           </div>
@@ -113,8 +113,8 @@
             <div class="coin-bar-fill" id="bar1" style="width: 0%"></div>
           </div>
           <div class="coin-threshold-info">
-            <span class="threshold-label">Subtotal:</span>
-            <span class="threshold-val met" id="progress1">₱0</span>
+            <span class="threshold-label">Rate: 5 mins/coin</span>
+            <span class="threshold-val met" id="progress1">₱0 (0 mins)</span>
           </div>
         </div>
 
@@ -123,7 +123,7 @@
           <div class="coin-header">
             <div class="coin-badge-container">
               <span class="coin-badge">₱5</span>
-              <span class="coin-name-tag">FIVE PESOS</span>
+              <span class="coin-name-tag">FIVE PESOS · 30 MINS</span>
             </div>
             <div class="coin-status-badge" id="shareBadge5">0% OF VAULT</div>
           </div>
@@ -135,8 +135,8 @@
             <div class="coin-bar-fill" id="bar5" style="width: 0%"></div>
           </div>
           <div class="coin-threshold-info">
-            <span class="threshold-label">Subtotal:</span>
-            <span class="threshold-val met" id="progress5">₱0</span>
+            <span class="threshold-label">Rate: 30 mins/coin</span>
+            <span class="threshold-val met" id="progress5">₱0 (0 mins)</span>
           </div>
         </div>
 
@@ -145,7 +145,7 @@
           <div class="coin-header">
             <div class="coin-badge-container">
               <span class="coin-badge">₱10</span>
-              <span class="coin-name-tag">TEN PESOS</span>
+              <span class="coin-name-tag">TEN PESOS · 1 HOUR</span>
             </div>
             <div class="coin-status-badge" id="shareBadge10">0% OF VAULT</div>
           </div>
@@ -157,8 +157,8 @@
             <div class="coin-bar-fill" id="bar10" style="width: 0%"></div>
           </div>
           <div class="coin-threshold-info">
-            <span class="threshold-label">Subtotal:</span>
-            <span class="threshold-val met" id="progress10">₱0</span>
+            <span class="threshold-label">Rate: 1 hour/coin</span>
+            <span class="threshold-val met" id="progress10">₱0 (0 mins)</span>
           </div>
         </div>
 
@@ -167,7 +167,7 @@
           <div class="coin-header">
             <div class="coin-badge-container">
               <span class="coin-badge">₱20</span>
-              <span class="coin-name-tag">TWENTY PESOS</span>
+              <span class="coin-name-tag">TWENTY PESOS · 3 HOURS</span>
             </div>
             <div class="coin-status-badge" id="shareBadge20">0% OF VAULT</div>
           </div>
@@ -179,8 +179,8 @@
             <div class="coin-bar-fill" id="bar20" style="width: 0%"></div>
           </div>
           <div class="coin-threshold-info">
-            <span class="threshold-label">Subtotal:</span>
-            <span class="threshold-val met" id="progress20">₱0</span>
+            <span class="threshold-label">Rate: 3 hours/coin</span>
+            <span class="threshold-val met" id="progress20">₱0 (0 mins)</span>
           </div>
         </div>
       </section>
@@ -189,8 +189,8 @@
       <section class="logs-section">
         <div class="section-toolbar">
           <div>
-            <h2 class="section-title">TRANSACTION LOGS & AUDIT TRAIL</h2>
-            <p class="section-sub">Permanent record of deposits and collections (preserved forever)</p>
+            <h2 class="section-title">TRANSACTION LOGS &amp; AUDIT TRAIL</h2>
+            <p class="section-sub">Permanent record of deposits, WiFi time credited, and collections</p>
           </div>
           <div class="filter-group">
             <button class="filter-btn active" data-filter="ALL">ALL RECORDS</button>
@@ -205,7 +205,7 @@
               <tr>
                 <th>TIMESTAMP</th>
                 <th>EVENT TYPE</th>
-                <th>DENOMINATION</th>
+                <th>COIN &amp; WIFI TIME</th>
                 <th>AMOUNT</th>
                 <th>CONTAINER SNAPSHOT</th>
                 <th>VAULT TOTAL</th>
@@ -243,7 +243,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" id="cancelConfigBtn">CANCEL</button>
-        <button class="btn btn-primary" id="saveConfigBtn">SAVE & CONNECT</button>
+        <button class="btn btn-primary" id="saveConfigBtn">SAVE &amp; CONNECT</button>
       </div>
     </div>
   </div>
@@ -255,7 +255,7 @@
         <div class="confirm-header-content">
           <div class="confirm-alert-icon">🔄</div>
           <div>
-            <h3 class="confirm-title">RESET VAULT & RECORD COLLECTION</h3>
+            <h3 class="confirm-title">RESET VAULT &amp; RECORD COLLECTION</h3>
             <span class="confirm-subtitle">PHYSICAL COIN WITHDRAWAL SYNC</span>
           </div>
         </div>
@@ -273,6 +273,10 @@
           <div class="confirm-summary-row">
             <span class="confirm-label">COINS COLLECTED:</span>
             <span class="confirm-val" id="resetCoinsText">0 pcs</span>
+          </div>
+          <div class="confirm-summary-row">
+            <span class="confirm-label">TOTAL WIFI TIME CREDITED:</span>
+            <span class="confirm-val" id="resetTimeText">0 mins</span>
           </div>
           <div class="confirm-summary-row">
             <span class="confirm-label">COIN BREAKDOWN:</span>
